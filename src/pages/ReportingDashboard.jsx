@@ -24,14 +24,134 @@ const mockTableData = [
   { id: 'TRX-005', station: 'Stesen EV Jasin', district: 'Jasin', duration: '30m', power: '12 kWh', status: 'completed' }
 ];
 
+const FormalReportTemplate = React.forwardRef(({ data, tableData }, ref) => {
+  return (
+    <div ref={ref} className="formal-report">
+      <div className="report-header">
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+          <div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+              <div style={{ width: '40px', height: '40px', background: '#800000', borderRadius: '8px', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'white' }}>
+                <Zap size={24} />
+              </div>
+              <div>
+                <h1 style={{ margin: 0, fontSize: '1.5rem', color: '#800000' }}>VOLT-PARK</h1>
+                <p style={{ margin: 0, fontSize: '0.8rem', color: '#666' }}>Melaka EV Charging Network</p>
+              </div>
+            </div>
+            <div style={{ marginTop: '20px', fontSize: '0.85rem', color: '#444' }}>
+              <p style={{ margin: '2px 0' }}>Suite 15-B, Menara Stadthuys</p>
+              <p style={{ margin: '2px 0' }}>Bandar Hilir, 75000 Melaka, Malaysia</p>
+              <p style={{ margin: '2px 0' }}>Contact: +60 6-282 1234 | support@voltpark.my</p>
+            </div>
+          </div>
+          <div style={{ textAlign: 'right' }}>
+            <h2 style={{ margin: 0, color: '#800000', fontSize: '1.2rem', letterSpacing: '1px' }}>OFFICIAL NETWORK REPORT</h2>
+            <div style={{ marginTop: '15px', fontSize: '0.85rem' }}>
+              <p style={{ margin: '4px 0' }}><strong>Report ID:</strong> RPT-{new Date().getFullYear()}-{(Math.random() * 10000).toFixed(0)}</p>
+              <p style={{ margin: '4px 0' }}><strong>Date:</strong> {new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'long', year: 'numeric' })}</p>
+              <p style={{ margin: '4px 0' }}><strong>Status:</strong> FINALIZED</p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div className="report-section">
+        <h3 className="section-title">Network Performance Summary</h3>
+        <table className="formal-table">
+          <thead>
+            <tr>
+              <th>Metric Description</th>
+              <th>Current Usage</th>
+              <th>Evaluation</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>Total Power Dispensed (Network-wide)</td>
+              <td><strong>14.2 MWh</strong></td>
+              <td style={{ color: 'var(--color-success)' }}>+12% vs Previous Period</td>
+            </tr>
+            <tr>
+              <td>Total Active Charging Sessions</td>
+              <td><strong>42 Units</strong></td>
+              <td>Nominal Capacity</td>
+            </tr>
+            <tr>
+              <td>Highest Demand District</td>
+              <td><strong>Melaka Tengah</strong></td>
+              <td>64% System Load</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div className="report-section">
+        <h3 className="section-title">Weekly Energy Consumption Analysis</h3>
+        <div style={{ height: '300px', width: '100%', marginTop: '20px' }}>
+          <ResponsiveContainer width="100%" height="100%">
+            <BarChart data={data}>
+              <CartesianGrid strokeDasharray="3 3" vertical={false} />
+              <XAxis dataKey="name" />
+              <YAxis />
+              <Legend />
+              <Bar dataKey="MelakaTengah" name="Melaka Tengah" fill="#800000" />
+              <Bar dataKey="Jasin" name="Jasin" fill="#D4AF37" />
+              <Bar dataKey="AlorGajah" name="Alor Gajah" fill="#2E7D32" />
+            </BarChart>
+          </ResponsiveContainer>
+        </div>
+      </div>
+
+      <div className="report-section">
+        <h3 className="section-title">Detailed Transaction Records</h3>
+        <table className="formal-table">
+          <thead>
+            <tr>
+              <th>ID</th>
+              <th>Station / Location</th>
+              <th>District</th>
+              <th>Power (kWh)</th>
+              <th>Duration</th>
+              <th>Status</th>
+            </tr>
+          </thead>
+          <tbody>
+            {tableData.map(log => (
+              <tr key={log.id}>
+                <td>{log.id}</td>
+                <td>{log.station}</td>
+                <td>{log.district}</td>
+                <td>{log.power}</td>
+                <td>{log.duration}</td>
+                <td style={{ textTransform: 'capitalize' }}>{log.status}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+
+      <div className="report-footer">
+        <p>This is a computer-generated report for the Melaka EV Charging Network. No physical signature is required.</p>
+        <p style={{ marginTop: '5px' }}>© {new Date().getFullYear()} Volt-Park Malaysia. Confidential Information.</p>
+      </div>
+    </div>
+  );
+});
+
 const ReportingDashboard = () => {
   const componentRef = useRef();
+  const printRef = useRef();
+  
   const handlePrint = useReactToPrint({
-    contentRef: componentRef,
-    documentTitle: 'District-Demand-Report',
+    contentRef: printRef,
+    documentTitle: `VoltPark_Network_Report_${new Date().toISOString().split('T')[0]}`,
     pageStyle: `
-      @page { size: auto; margin: 20mm; }
-      @media print { body { -webkit-print-color-adjust: exact; } }
+      @page { size: A4; margin: 15mm; }
+      @media print { 
+        body { background: white !important; -webkit-print-color-adjust: exact; } 
+        .formal-report { display: block !important; }
+      }
     `
   });
 
@@ -39,18 +159,17 @@ const ReportingDashboard = () => {
     <div>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>
         <div>
-          <h2 style={{ marginBottom: '4px' }}>District Demand Report</h2>
-          <p style={{ color: 'var(--color-text-muted)', margin: 0 }}>Overview of power usage and station utilization across Melaka.</p>
+          <h2 style={{ marginBottom: '4px' }}>Reporting Dashboard</h2>
+          <p style={{ color: 'var(--color-text-muted)', margin: 0 }}>Monitor power and station utilization with heritage context.</p>
         </div>
         <button className="btn-export" onClick={handlePrint}>
           <Download size={18} />
-          Export to PDF
+          Export Formal Report
         </button>
       </div>
 
-      {/* This ref wraps the content that will be printed */}
-      <div ref={componentRef} style={{ background: 'var(--color-background)', padding: '16px' }}>
-        {/* KPI Section */}
+      {/* Visible Dashboard UI - Targets componentRef */}
+      <div ref={componentRef}>
         <div className="kpi-grid">
           <div className="kpi-card">
             <div className="kpi-content">
@@ -84,7 +203,6 @@ const ReportingDashboard = () => {
           </div>
         </div>
 
-        {/* Chart Section */}
         <div className="card">
           <div className="card-header">
             <h3 style={{ margin: 0 }}>Weekly Energy Demand (kWh)</h3>
@@ -105,7 +223,6 @@ const ReportingDashboard = () => {
           </div>
         </div>
 
-        {/* Table Section */}
         <div className="card">
           <div className="card-header">
             <h3 style={{ margin: 0 }}>Recent Charging Logs</h3>
@@ -141,6 +258,11 @@ const ReportingDashboard = () => {
             </table>
           </div>
         </div>
+      </div>
+
+      {/* Hidden Formal Template - For Print Only */}
+      <div style={{ display: 'none' }}>
+        <FormalReportTemplate ref={printRef} data={mockChartData} tableData={mockTableData} />
       </div>
     </div>
   );

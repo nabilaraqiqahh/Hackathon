@@ -399,3 +399,71 @@ button {
 .bay-indicator.available { background-color: var(--color-success); }
 .bay-indicator.occupied { background-color: var(--color-danger); }
 .bay-indicator.offline { background-color: #ccc; }
+
+/* Formal Report Styles (Print Only) */
+.formal-report {
+  display: none;
+  background-color: white !important;
+  color: #333 !important;
+  font-family: 'Inter', sans-serif;
+  padding: 40px;
+}
+
+.report-header {
+  border-bottom: 2px solid #eee;
+  padding-bottom: 30px;
+  margin-bottom: 30px;
+}
+
+.report-section {
+  margin-bottom: 40px;
+}
+
+.section-title {
+  font-size: 1.1rem;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  color: #800000;
+  border-bottom: 1px solid #ddd;
+  padding-bottom: 8px;
+  margin-bottom: 15px;
+}
+
+.formal-table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-top: 10px;
+}
+
+.formal-table th {
+  background-color: #f8f8f8;
+  color: #666;
+  text-align: left;
+  padding: 12px;
+  font-size: 0.85rem;
+  border-bottom: 2px solid #ddd;
+}
+
+.formal-table td {
+  padding: 12px;
+  border-bottom: 1px solid #eee;
+  font-size: 0.9rem;
+}
+
+.report-footer {
+  margin-top: 60px;
+  border-top: 1px solid #eee;
+  padding-top: 20px;
+  text-align: center;
+  font-size: 0.75rem;
+  color: #888;
+}
+
+@media print {
+  .formal-report {
+    display: block !important;
+  }
+  .app-layout, .sidebar, .header, .dashboard-content > :not(.formal-report) {
+    display: none !important;
+  }
+}
