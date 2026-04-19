@@ -25,7 +25,7 @@ const MapExplorer = () => {
         </div>
       </div>
 
-      <div style={{ flex: 1, display: 'grid', gridTemplateColumns: '1fr 350px', gap: '24px' }}>
+      <div style={{ flex: 1, display: 'grid', gridTemplateColumns: '1fr', gap: '24px' }}>
         <div className="card" style={{ padding: '0', position: 'relative', overflow: 'hidden', background: '#e0dfdb' }}>
           {/* Mock Map Background avec pattern Melaka-ish */}
           <div style={{ 
@@ -84,41 +84,6 @@ const MapExplorer = () => {
               </div>
             );
           })}
-        </div>
-
-        <div className="card" style={{ display: 'flex', flexDirection: 'column' }}>
-          <div className="card-header">
-            <h3 style={{ margin: 0 }}>Station Details</h3>
-          </div>
-          <div className="card-body" style={{ flex: 1, overflowY: 'auto' }}>
-            <div className="mb-3" style={{ padding: '16px', border: '1px solid rgba(0,0,0,0.05)', borderRadius: '12px', background: 'white' }}>
-              <div style={{ display: 'flex', gap: '12px', marginBottom: '12px' }}>
-                <div style={{ width: '40px', height: '40px', background: 'var(--color-primary)', borderRadius: '8px', display: 'flex', alignItems: 'center', justifySelf: 'center', color: 'white', padding: '8px' }}>
-                  <Navigation size={24} />
-                </div>
-                <div>
-                  <h4 style={{ margin: 0 }}>Stesen EV Melaka Tengah</h4>
-                  <p style={{ margin: 0, fontSize: '0.8rem', color: 'var(--color-text-muted)' }}>Bandar Hilir, Melaka</p>
-                </div>
-              </div>
-              <div style={{ display: 'flex', gap: '20px', marginBottom: '16px' }}>
-                <div>
-                  <div style={{ fontSize: '0.7rem', color: 'var(--color-text-muted)' }}>AVAILABILITY</div>
-                  <div style={{ fontWeight: 700, color: 'var(--color-success)' }}>2 / 4 Units</div>
-                </div>
-                <div>
-                  <div style={{ fontSize: '0.7rem', color: 'var(--color-text-muted)' }}>CHARGER TYPE</div>
-                  <div style={{ fontWeight: 700 }}>Fast DC (60kW)</div>
-                </div>
-              </div>
-              <button className="btn-export" style={{ width: '100%', justifyContent: 'center' }}>Book Now</button>
-            </div>
-
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '12px', borderRadius: '8px', background: 'rgba(212, 175, 55, 0.1)', color: 'var(--color-accent)' }}>
-              <Info size={16} />
-              <div style={{ fontSize: '0.85rem' }}>Select a pin on the map to view detailed availability and technical specs.</div>
-            </div>
-          </div>
         </div>
       </div>
     </div>

@@ -65,6 +65,7 @@ export const DataProvider = ({ children }) => {
   // CRUD Helpers
   const addUser = (user) => setUsers([...users, { ...user, id: `U00${users.length + 1}`, joined: new Date().toISOString().split('T')[0] }]);
   const deleteUser = (id) => setUsers(users.filter(u => u.id !== id));
+  const updateUser = (updatedUser) => setUsers(users.map(u => u.id === updatedUser.id ? updatedUser : u));
   
   const addStation = (stn) => setStations([...stations, { ...stn, id: `STN-00${stations.length + 1}`, bays: [] }]);
   const deleteStation = (id) => setStations(stations.filter(s => s.id !== id));
@@ -73,7 +74,7 @@ export const DataProvider = ({ children }) => {
   };
 
   const value = {
-    users, addUser, deleteUser,
+    users, addUser, deleteUser, updateUser,
     stations, addStation, deleteStation, updateStationStatus,
     reservations,
     payments
