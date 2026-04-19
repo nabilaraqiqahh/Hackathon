@@ -55,7 +55,7 @@ const DashboardOverview = () => {
         </div>
       </div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: '24px' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: '24px' }}>
         <div className="card">
           <div className="card-header">
             <h3 style={{ margin: 0 }}>System Activity</h3>
@@ -79,23 +79,6 @@ const DashboardOverview = () => {
                 </div>
               ))}
             </div>
-          </div>
-        </div>
-
-        <div className="card">
-          <div className="card-header">
-            <h3 style={{ margin: 0 }}>Quick Actions</h3>
-          </div>
-          <div className="card-body">
-            <button className="nav-link active" style={{ width: '100%', border: 'none', marginBottom: '12px', justifyContent: 'center' }}>
-              Add New Station
-            </button>
-            <button className="nav-link" style={{ width: '100%', border: '1px solid rgba(0,0,0,0.1)', marginBottom: '12px', justifyContent: 'center' }}>
-              Manage Users
-            </button>
-            <button className="nav-link" style={{ width: '100%', border: '1px solid rgba(0,0,0,0.1)', justifyContent: 'center' }}>
-              System Logs
-            </button>
           </div>
         </div>
       </div>
