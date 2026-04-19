@@ -3,7 +3,10 @@ import { useData } from '../context/DataContext';
 import { Calendar, Clock, MapPin, Search } from 'lucide-react';
 
 export const BookingHistory = () => {
-  const { reservations } = useData();
+  const { reservations, currentUser } = useData();
+  const isAdmin = currentUser?.type === 'Admin';
+  const displayedReservations = isAdmin ? reservations : reservations.filter(r => r.user === currentUser?.name);
+
   return (
     <div>
       <div className="mb-4">
@@ -24,7 +27,7 @@ export const BookingHistory = () => {
               </tr>
             </thead>
             <tbody>
-              {reservations.map(res => (
+              {displayedReservations.map(res => (
                 <tr key={res.id}>
                   <td style={{ fontWeight: 600 }}>{res.id}</td>
                   <td>{res.user}</td>
@@ -47,7 +50,10 @@ export const BookingHistory = () => {
 };
 
 export const PaymentHistory = () => {
-  const { payments } = useData();
+  const { payments, currentUser } = useData();
+  const isAdmin = currentUser?.type === 'Admin';
+  const displayedPayments = isAdmin ? payments : payments.filter(p => p.user === currentUser?.name);
+
   return (
     <div>
       <div className="mb-4">
@@ -67,7 +73,7 @@ export const PaymentHistory = () => {
               </tr>
             </thead>
             <tbody>
-              {payments.map(pay => (
+              {displayedPayments.map(pay => (
                 <tr key={pay.id}>
                   <td style={{ fontWeight: 600 }}>{pay.id}</td>
                   <td>{pay.user}</td>

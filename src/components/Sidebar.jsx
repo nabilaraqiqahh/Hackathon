@@ -39,23 +39,7 @@ const Sidebar = () => {
         ))}
       </nav>
 
-      <div className="sidebar-profile">
-        <button onClick={logout} style={{ 
-          background: 'none', 
-          border: 'none', 
-          color: 'var(--color-danger)', 
-          display: 'flex', 
-          alignItems: 'center', 
-          gap: '8px', 
-          padding: '8px', 
-          width: '100%',
-          cursor: 'pointer',
-          marginBottom: '10px',
-          fontWeight: 600
-        }}>
-          <LogOut size={18} />
-          Sign Out
-        </button>
+      <div className="sidebar-profile" style={{ flexDirection: 'column', alignItems: 'stretch', gap: '16px' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
           <div className="avatar">{currentUser?.name?.charAt(0) || 'U'}</div>
           <div className="profile-info">
@@ -63,6 +47,24 @@ const Sidebar = () => {
             <p>{currentUser?.type || 'User'}</p>
           </div>
         </div>
+        <button onClick={logout} style={{ 
+          background: 'rgba(211, 47, 47, 0.1)', 
+          border: 'none', 
+          borderRadius: '8px',
+          color: 'var(--color-danger)', 
+          display: 'flex', 
+          alignItems: 'center', 
+          justifyContent: 'center',
+          gap: '8px', 
+          padding: '10px', 
+          width: '100%',
+          cursor: 'pointer',
+          fontWeight: 600,
+          transition: 'all 0.2s'
+        }}>
+          <LogOut size={18} />
+          Sign Out
+        </button>
       </div>
     </aside>
   );

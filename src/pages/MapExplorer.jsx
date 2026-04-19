@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { MapPin, Info, Navigation, Search } from 'lucide-react';
-import { MapContainer, TileLayer, Marker, Popup } from 'react-leaflet';
+import { MapContainer, TileLayer, Marker, Popup, CircleMarker } from 'react-leaflet';
 import L from 'leaflet';
 import { useData } from '../context/DataContext';
 
@@ -41,10 +42,12 @@ const StatusBadge = ({ status }) => {
 };
 
 const MapExplorer = () => {
-  const { stations, isLocationEnabled, toggleLocation } = useData();
+  const { stations, isLocationEnabled, toggleLocation, currentUser, reserveStation } = useData();
+  const navigate = useNavigate();
   const [district, setDistrict] = useState('All Districts');
   const [selectedStation, setSelectedStation] = useState(null);
   const [filteredStations, setFilteredStations] = useState(stations);
+  const [userLocation, setUserLocation] = useState(null);
 
   useEffect(() => {
     let result = stations;
@@ -54,6 +57,29 @@ const MapExplorer = () => {
     setFilteredStations(result);
   }, [district, stations]);
 
+  useEffect(() => {
+    let watchId;
+    if (isLocationEnabled) {
+      if ('geolocation' in navigator) {
+        watchId = navigator.geolocation.watchPosition(
+          (position) => {
+            setUserLocation([position.coords.latitude, position.coords.longitude]);
+          },
+          (error) => {
+            console.error("Error getting location: ", error);
+          },
+          { enableHighAccuracy: true, maximumAge: 10000, timeout: 5000 }
+        );
+      }
+    } else {
+      setUserLocation(null);
+    }
+
+    return () => {
+      if (watchId) navigator.geolocation.clearWatch(watchId);
+    };
+  }, [isLocationEnabled]);
+
   const mapCenter = [2.1896, 102.2501]; // Melaka City coordinates
 
   const getPos = (dist) => {
@@ -61,6 +87,27 @@ const MapExplorer = () => {
     if (dist === 'Alor Gajah') return [2.3846, 102.2132];
     return [2.1896, 102.2501];
   };
+
+  const calculateDistance = (lat1, lon1, lat2, lon2) => {
+    const R = 6371; // km
+    const dLat = (lat2 - lat1) * Math.PI / 180;  
+    const dLon = (lon2 - lon1) * Math.PI / 180; 
+    const a = 
+      Math.sin(dLat/2) * Math.sin(dLat/2) +
+      Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * 
+      Math.sin(dLon/2) * Math.sin(dLon/2); 
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a)); 
+    return R * c;
+  };
+
+  const sortedStations = [...filteredStations].map(stn => {
+    const pos = getPos(stn.district);
+    const dist = userLocation ? calculateDistance(userLocation[0], userLocation[1], pos[0], pos[1]) : null;
+    return { ...stn, distance: dist };
+  }).sort((a, b) => {
+    if (a.distance === null || b.distance === null) return 0;
+    return a.distance - b.distance;
+  });
 
   return (
     <div style={{ height: 'calc(100vh - 120px)', display: 'flex', flexDirection: 'column' }}>
@@ -127,6 +174,19 @@ const MapExplorer = () => {
                 </Popup>
               </Marker>
             ))}
+            {isLocationEnabled && userLocation && (
+              <CircleMarker 
+                center={userLocation} 
+                pathOptions={{ color: 'white', fillColor: '#3b82f6', fillOpacity: 1, weight: 2 }} 
+                radius={8}
+              >
+                <Popup>
+                  <div style={{ textAlign: 'center', padding: '2px' }}>
+                    <strong style={{ fontSize: '0.9rem' }}>You are here</strong>
+                  </div>
+                </Popup>
+              </CircleMarker>
+            )}
           </MapContainer>
 
           {!isLocationEnabled && (
@@ -211,14 +271,60 @@ const MapExplorer = () => {
                   </div>
                 </div>
 
-                <button className="login-btn" style={{ marginTop: '20px' }}>
+                <button 
+                  className="login-btn" 
+                  style={{ marginTop: '20px', opacity: selectedStation.status === 'Maintenance' ? 0.5 : 1 }}
+                  disabled={selectedStation.status === 'Maintenance'}
+                  onClick={() => {
+                    if (!currentUser) {
+                      alert('Please log in to make a reservation.');
+                      navigate('/login');
+                      return;
+                    }
+                    if (selectedStation.status === 'Maintenance') {
+                      alert('This station is currently under maintenance.');
+                      return;
+                    }
+                    reserveStation({
+                      user: currentUser.name,
+                      station: selectedStation.district,
+                      date: new Date().toISOString().split('T')[0],
+                      time: new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false }),
+                      status: 'Confirmed'
+                    });
+                    alert('Reservation confirmed successfully!');
+                    navigate('/reservations');
+                  }}
+                >
                   Reserve Now
                 </button>
               </div>
             ) : (
-              <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', textAlign: 'center', color: 'var(--color-text-muted)' }}>
-                <Search size={48} style={{ opacity: 0.2, marginBottom: '15px' }} />
-                <p>Select a charging station on the map to view details and availability.</p>
+              <div style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
+                <h3 style={{ margin: '0 0 15px 0', fontSize: '1rem' }}>Nearby Stations</h3>
+                {userLocation ? (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', overflowY: 'auto', flex: 1, paddingRight: '4px' }}>
+                    {sortedStations.map(stn => (
+                      <div 
+                        key={stn.id} 
+                        onClick={() => setSelectedStation(stn)}
+                        style={{ padding: '12px', border: '1px solid rgba(0,0,0,0.05)', borderRadius: '12px', cursor: 'pointer', display: 'flex', justifyContent: 'space-between', alignItems: 'center', transition: 'all 0.2s' }}
+                        className="station-card"
+                      >
+                        <div>
+                          <div style={{ fontWeight: 600, fontSize: '0.9rem' }}>{stn.name}</div>
+                          <div style={{ fontSize: '0.75rem', color: 'var(--color-text-muted)', marginTop: '4px' }}>{stn.distance.toFixed(1)} km away</div>
+                        </div>
+                        <StatusBadge status={stn.status} />
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', textAlign: 'center', color: 'var(--color-text-muted)' }}>
+                    <Navigation size={48} style={{ opacity: 0.2, marginBottom: '15px' }} />
+                    <p style={{ fontSize: '0.9rem' }}>Enable location to see nearest stations or select one on the map.</p>
+                  </div>
+                )}
               </div>
             )}
           </div>

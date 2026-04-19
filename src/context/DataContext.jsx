@@ -90,10 +90,14 @@ export const DataProvider = ({ children }) => {
     setStations(stations.map(s => s.id === id ? { ...s, status } : s));
   };
 
+  const reserveStation = (reservation) => {
+    setReservations([{ ...reservation, id: `RES-${100 + reservations.length + 1}` }, ...reservations]);
+  };
+
   const value = {
     users, addUser, deleteUser, updateUser,
     stations, addStation, deleteStation, updateStationStatus,
-    reservations,
+    reservations, reserveStation,
     payments,
     currentUser, login, logout,
     isLocationEnabled, toggleLocation

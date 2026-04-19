@@ -32,7 +32,7 @@ const LoginPage = () => {
     <div className="login-container">
       <div className="login-card card">
         <div className="login-header">
-          <img src="/logo.png" alt="Volt-Park Logo" style={{ width: '80px', height: 'auto', marginBottom: '20px' }} />
+          <img src="/login-logo.png" alt="Volt-Park Logo" style={{ width: '160px', height: 'auto', marginBottom: '20px' }} />
           <h1 className="melaka-title">VOLT-PARK</h1>
           <p className="melaka-subtitle">Melaka EV Charging Network</p>
         </div>
