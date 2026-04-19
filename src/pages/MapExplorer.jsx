@@ -9,8 +9,7 @@ const OCM_API_KEY = "292877f3-6142-4c76-b36b-fb1f0524e86d";
 // ─────────────────────────────────────────────
 //  MELAKA TRUE BORDER (polygon point-in-polygon)
 //  Coordinates traced along the actual state boundary.
-//  This is far more accurate than a rectangle and
-//  completely excludes Tangkak (Johor) & N. Sembilan.
+//  This is far more accurate than a rectangle
 // ─────────────────────────────────────────────
 const MELAKA_POLYGON = [
   [2.505, 102.150], // NW corner (Alor Gajah north-west)
@@ -130,13 +129,13 @@ function createIcon(color) {
   });
 }
 
-const STATUS_COLOR = { available: "#22c55e", busy: "#f59e0b", full: "#ef4444", unknown: "#94a3b8" };
-const STATUS_LABEL = { available: "Available", busy: "Busy", full: "Full", unknown: "Unknown" };
+const STATUS_COLOR = { available: "#22c55e", maintenance: "#f59e0b", full: "#ef4444", unknown: "#94a3b8" };
+const STATUS_LABEL = { available: "Available", maintenance: "Maintenance", full: "Full", unknown: "Unknown" };
 
 function deriveStatus(poi) {
   const id = poi.StatusType?.ID;
   if (id === 50)  return "available";
-  if (id === 75)  return "busy";
+  if (id === 75)  return "maintenance";
   if (id === 210) return "full";
   return "unknown";
 }
@@ -199,7 +198,7 @@ const MapExplorer = () => {
           const t = c.ConnectionType?.Title || "";
           if (t.includes("CHAdeMO") || t.includes("CCS") || t.toLowerCase().includes("dc")) return "DC";
           if (t.toLowerCase().includes("fast")) return "DC Fast";
-          return "AC";
+          return "AC Standard";
         }))];
         const lat     = poi.AddressInfo?.Latitude;
         const lng     = poi.AddressInfo?.Longitude;
@@ -216,7 +215,7 @@ const MapExplorer = () => {
           lat,
           lng,
           status:      deriveStatus(poi),
-          type:        types[0] || "AC",
+          type:        types[0] || "AC Standard",
           usageCost:   poi.UsageCost || null,
           operator:    poi.OperatorInfo?.Title || "Unknown Operator",
           connections: conns.length || 1,
@@ -250,7 +249,7 @@ const MapExplorer = () => {
   const filtered = stations.filter((s) => {
     if (district !== "All Districts" && s.district !== district) return false;
     if (availability === "Available" && s.status !== "available") return false;
-    if (availability === "Busy"      && s.status !== "busy")      return false;
+    if (availability === "Maintenance"      && s.status !== "maintenance")      return false;
     if (availability === "Full"      && s.status !== "full")      return false;
     if (chargerType !== "All Types"  && s.type !== chargerType)   return false;
     return true;
@@ -373,15 +372,15 @@ const MapExplorer = () => {
               <select style={selectStyle} value={availability} onChange={(e) => setAvailability(e.target.value)}>
                 <option>All Status</option>
                 <option>Available</option>
-                <option>Busy</option>
+                <option>Maintenance</option>
                 <option>Full</option>
               </select>
               <label style={labelStyle}>Charger Type</label>
               <select style={{ ...selectStyle, marginBottom: 0 }} value={chargerType} onChange={(e) => setChargerType(e.target.value)}>
                 <option>All Types</option>
-                <option>AC</option>
-                <option>DC</option>
-                <option>DC Fast</option>
+                <option>Fast DC(60kW+)</option>
+                <option>AC Standard(22kW+)</option>
+                <option>Ultra Fast(150kW+)</option>
               </select>
             </div>
 
