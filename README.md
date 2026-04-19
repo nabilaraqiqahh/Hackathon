@@ -1,0 +1,3 @@
+# Hackathon
+
+Initial repository setup.
