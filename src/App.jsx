@@ -8,19 +8,74 @@ import UserManagement from './pages/UserManagement';
 import { BookingHistory, PaymentHistory } from './pages/SupportPages';
 import ReportingDashboard from './pages/ReportingDashboard';
 
+import { useData } from './context/DataContext';
+import LoginPage from './pages/LoginPage';
+
+const ProtectedRoute = ({ children, allowedRoles }) => {
+  const { currentUser } = useData();
+  
+  if (!currentUser) {
+    return <Navigate to="/login" replace />;
+  }
+
+  if (allowedRoles && !allowedRoles.includes(currentUser.type)) {
+    return <Navigate to="/map" replace />;
+  }
+
+  return children;
+};
+
 function App() {
   return (
     <BrowserRouter>
       <Routes>
+        <Route path="/login" element={<LoginPage />} />
+        
         <Route path="/" element={<Navigate to="/dashboard" replace />} />
-        <Route path="/dashboard" element={<DashboardLayout><DashboardOverview /></DashboardLayout>} />
-        <Route path="/map" element={<DashboardLayout><MapExplorer /></DashboardLayout>} />
-        <Route path="/stations" element={<DashboardLayout><StationManagement /></DashboardLayout>} />
-        <Route path="/users" element={<DashboardLayout><UserManagement /></DashboardLayout>} />
-        <Route path="/reservations" element={<DashboardLayout><BookingHistory /></DashboardLayout>} />
-        <Route path="/payment" element={<DashboardLayout><PaymentHistory /></DashboardLayout>} />
-        <Route path="/report" element={<DashboardLayout><ReportingDashboard /></DashboardLayout>} />
-        <Route path="*" element={<Navigate to="/dashboard" replace />} />
+        
+        <Route path="/dashboard" element={
+          <ProtectedRoute allowedRoles={['Admin']}>
+            <DashboardLayout><DashboardOverview /></DashboardLayout>
+          </ProtectedRoute>
+        } />
+        
+        <Route path="/map" element={
+          <ProtectedRoute>
+            <DashboardLayout><MapExplorer /></DashboardLayout>
+          </ProtectedRoute>
+        } />
+        
+        <Route path="/stations" element={
+          <ProtectedRoute allowedRoles={['Admin']}>
+            <DashboardLayout><StationManagement /></DashboardLayout>
+          </ProtectedRoute>
+        } />
+        
+        <Route path="/users" element={
+          <ProtectedRoute allowedRoles={['Admin']}>
+            <DashboardLayout><UserManagement /></DashboardLayout>
+          </ProtectedRoute>
+        } />
+        
+        <Route path="/reservations" element={
+          <ProtectedRoute>
+            <DashboardLayout><BookingHistory /></DashboardLayout>
+          </ProtectedRoute>
+        } />
+        
+        <Route path="/payment" element={
+          <ProtectedRoute>
+            <DashboardLayout><PaymentHistory /></DashboardLayout>
+          </ProtectedRoute>
+        } />
+        
+        <Route path="/report" element={
+          <ProtectedRoute allowedRoles={['Admin']}>
+            <DashboardLayout><ReportingDashboard /></DashboardLayout>
+          </ProtectedRoute>
+        } />
+        
+        <Route path="*" element={<Navigate to="/login" replace />} />
       </Routes>
     </BrowserRouter>
   );
