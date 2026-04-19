@@ -27,7 +27,7 @@ switch ($method) {
         $input = json_decode(file_get_contents("php://input"), true);
         if (isset($input['station_name'], $input['district'], $input['total_bays'])) {
             $available_bays = $input['available_bays'] ?? $input['total_bays'];
-            $status = $input['status'] ?? 'Active';
+            $status = $input['status'] ?? 'Available';
             
             $query = "INSERT INTO stations (station_name, district, total_bays, available_bays, status) VALUES (?, ?, ?, ?, ?)";
             $success = executeAction($query, [$input['station_name'], $input['district'], $input['total_bays'], $available_bays, $status]);

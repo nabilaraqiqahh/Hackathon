@@ -26,13 +26,20 @@ switch ($method) {
         // Create new user
         $input = json_decode(file_get_contents("php://input"), true);
         if (isset($input['full_name'], $input['email'])) {
-            $car_model = $input['car_model'] ?? null;
             $user_type = $input['user_type'] ?? 'Driver';
             
-            $query = "INSERT INTO users (full_name, email, car_model, user_type) VALUES (?, ?, ?, ?)";
-            $success = executeAction($query, [$input['full_name'], $input['email'], $car_model, $user_type]);
+            $query = "INSERT INTO users (full_name, email, user_type) VALUES (?, ?, ?)";
+            $new_user_id = executeInsert($query, [$input['full_name'], $input['email'], $user_type]);
             
-            echo json_encode(["success" => $success, "message" => $success ? "User created" : "Failed to create user"]);
+            if ($new_user_id && $user_type === 'Driver') {
+                $brand_id = $input['brand_id'] ?? null;
+                $model_id = $input['model_id'] ?? null;
+                if ($brand_id && $model_id) {
+                    executeAction("INSERT INTO drivers (user_id, brand_id, model_id) VALUES (?, ?, ?)", [$new_user_id, $brand_id, $model_id]);
+                }
+            }
+            
+            echo json_encode(["success" => (bool)$new_user_id, "message" => $new_user_id ? "User created" : "Failed to create user"]);
         } else {
             echo json_encode(["success" => false, "message" => "Missing required fields"]);
         }
@@ -42,9 +49,12 @@ switch ($method) {
         // Update user
         $input = json_decode(file_get_contents("php://input"), true);
         if (isset($input['user_id'])) {
-            // Simplified update logic (assume all fields provided for simplicity)
-            $query = "UPDATE users SET full_name = ?, car_model = ?, user_type = ? WHERE user_id = ?";
-            $success = executeAction($query, [$input['full_name'], $input['car_model'], $input['user_type'], $input['user_id']]);
+            $query = "UPDATE users SET full_name = ?, user_type = ? WHERE user_id = ?";
+            $success = executeAction($query, [$input['full_name'], $input['user_type'], $input['user_id']]);
+            
+            if ($success && $input['user_type'] === 'Driver' && isset($input['brand_id'], $input['model_id'])) {
+                executeAction("REPLACE INTO drivers (user_id, brand_id, model_id) VALUES (?, ?, ?)", [$input['user_id'], $input['brand_id'], $input['model_id']]);
+            }
             
             echo json_encode(["success" => $success, "message" => $success ? "User updated" : "Failed to update user"]);
         } else {

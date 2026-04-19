@@ -38,4 +38,22 @@ function executeAction($query, $params = []) {
         die("Action Failed: " . $e->getMessage());
     }
 }
+
+/**
+ * Execute an INSERT query and return the last inserted ID.
+ * 
+ * @param string $query The SQL query
+ * @param array $params The parameters to bind (optional)
+ * @return string The last inserted ID
+ */
+function executeInsert($query, $params = []) {
+    global $pdo;
+    try {
+        $stmt = $pdo->prepare($query);
+        $stmt->execute($params);
+        return $pdo->lastInsertId();
+    } catch(PDOException $e) {
+        die("Insert Failed: " . $e->getMessage());
+    }
+}
 ?>

@@ -3,7 +3,7 @@
 -- https://www.phpmyadmin.net/
 --
 -- Host: 127.0.0.1
--- Generation Time: Apr 19, 2026 at 04:11 AM
+-- Generation Time: Apr 19, 2026 at 10:40 AM
 -- Server version: 10.4.32-MariaDB
 -- PHP Version: 8.2.12
 
@@ -24,6 +24,74 @@ SET time_zone = "+00:00";
 -- --------------------------------------------------------
 
 --
+-- Table structure for table `car_brands`
+--
+
+CREATE TABLE `car_brands` (
+  `brand_id` int(11) NOT NULL,
+  `brand_name` varchar(50) NOT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+--
+-- Dumping data for table `car_brands`
+--
+
+INSERT INTO `car_brands` (`brand_id`, `brand_name`) VALUES
+(3, 'BYD'),
+(7, 'Chery'),
+(6, 'GWM'),
+(5, 'MG'),
+(2, 'Perodua'),
+(1, 'Proton'),
+(4, 'Tesla');
+
+-- --------------------------------------------------------
+
+--
+-- Table structure for table `car_models`
+--
+
+CREATE TABLE `car_models` (
+  `model_id` int(11) NOT NULL,
+  `brand_id` int(11) DEFAULT NULL,
+  `model_name` varchar(50) NOT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+--
+-- Dumping data for table `car_models`
+--
+
+INSERT INTO `car_models` (`model_id`, `brand_id`, `model_name`) VALUES
+(1, 1, 'e.MAS 5'),
+(2, 1, 'e.MAS 7'),
+(3, 2, 'QV-E'),
+(4, 2, 'EM-O'),
+(5, 3, 'Atto 3'),
+(6, 3, 'Dolphin'),
+(7, 3, 'Seal'),
+(8, 4, 'Model 3'),
+(9, 4, 'Model Y'),
+(10, 5, 'MG4 EV'),
+(11, 5, 'MG S5'),
+(12, 6, 'Ora Good Cat'),
+(13, 6, 'Ora 07'),
+(14, 7, 'Omoda E5');
+
+-- --------------------------------------------------------
+
+--
+-- Table structure for table `drivers`
+--
+
+CREATE TABLE `drivers` (
+  `user_id` int(11) NOT NULL,
+  `brand_id` int(11) DEFAULT NULL,
+  `model_id` int(11) DEFAULT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+-- --------------------------------------------------------
+
+--
 -- Table structure for table `stations`
 --
 
@@ -33,7 +101,7 @@ CREATE TABLE `stations` (
   `district` enum('Alor Gajah','Jasin','Melaka Tengah') NOT NULL,
   `total_bays` int(11) NOT NULL,
   `available_bays` int(11) NOT NULL,
-  `status` enum('Active','Maintenance','Full') DEFAULT 'Active'
+  `status` enum('Available','Maintenance','Full') DEFAULT 'Available'
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 -- --------------------------------------------------------
@@ -60,13 +128,34 @@ CREATE TABLE `users` (
   `user_id` int(11) NOT NULL,
   `full_name` varchar(100) NOT NULL,
   `email` varchar(100) NOT NULL,
-  `car_model` varchar(50) DEFAULT NULL,
   `user_type` enum('Driver','Admin') DEFAULT 'Driver'
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 --
 -- Indexes for dumped tables
 --
+
+--
+-- Indexes for table `car_brands`
+--
+ALTER TABLE `car_brands`
+  ADD PRIMARY KEY (`brand_id`),
+  ADD UNIQUE KEY `brand_name` (`brand_name`);
+
+--
+-- Indexes for table `car_models`
+--
+ALTER TABLE `car_models`
+  ADD PRIMARY KEY (`model_id`),
+  ADD KEY `brand_id` (`brand_id`);
+
+--
+-- Indexes for table `drivers`
+--
+ALTER TABLE `drivers`
+  ADD PRIMARY KEY (`user_id`),
+  ADD KEY `brand_id` (`brand_id`),
+  ADD KEY `model_id` (`model_id`);
 
 --
 -- Indexes for table `stations`
@@ -94,6 +183,18 @@ ALTER TABLE `users`
 --
 
 --
+-- AUTO_INCREMENT for table `car_brands`
+--
+ALTER TABLE `car_brands`
+  MODIFY `brand_id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=8;
+
+--
+-- AUTO_INCREMENT for table `car_models`
+--
+ALTER TABLE `car_models`
+  MODIFY `model_id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=15;
+
+--
 -- AUTO_INCREMENT for table `stations`
 --
 ALTER TABLE `stations`
@@ -114,6 +215,20 @@ ALTER TABLE `users`
 --
 -- Constraints for dumped tables
 --
+
+--
+-- Constraints for table `car_models`
+--
+ALTER TABLE `car_models`
+  ADD CONSTRAINT `car_models_ibfk_1` FOREIGN KEY (`brand_id`) REFERENCES `car_brands` (`brand_id`) ON DELETE CASCADE;
+
+--
+-- Constraints for table `drivers`
+--
+ALTER TABLE `drivers`
+  ADD CONSTRAINT `drivers_ibfk_1` FOREIGN KEY (`user_id`) REFERENCES `users` (`user_id`) ON DELETE CASCADE,
+  ADD CONSTRAINT `drivers_ibfk_2` FOREIGN KEY (`brand_id`) REFERENCES `car_brands` (`brand_id`),
+  ADD CONSTRAINT `drivers_ibfk_3` FOREIGN KEY (`model_id`) REFERENCES `car_models` (`model_id`);
 
 --
 -- Constraints for table `usage_logs`
