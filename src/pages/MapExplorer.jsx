@@ -1,16 +1,73 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
+import { MapPin, Info, Navigation, Search } from 'lucide-react';
+import { MapContainer, TileLayer, Marker, Popup } from 'react-leaflet';
+import L from 'leaflet';
 import { useData } from '../context/DataContext';
-import { MapPin, Navigation, Info } from 'lucide-react';
+
+// Fix for default Leaflet marker icons
+import markerIcon2x from 'leaflet/dist/images/marker-icon-2x.png';
+import markerIcon from 'leaflet/dist/images/marker-icon.png';
+import shadowIcon from 'leaflet/dist/images/marker-shadow.png';
+
+delete L.Icon.Default.prototype._getIconUrl;
+L.Icon.Default.mergeOptions({
+  iconRetinaUrl: markerIcon2x,
+  iconUrl: markerIcon,
+  shadowUrl: shadowIcon,
+});
+
+const StatusBadge = ({ status }) => {
+  const colors = {
+    'Online': '#2E7D32',
+    'Maintenance': '#D32F2F',
+    'Full': '#F57C00'
+  };
+  return (
+    <span style={{ 
+      padding: '4px 10px', 
+      borderRadius: '20px', 
+      fontSize: '0.75rem', 
+      fontWeight: 600, 
+      background: `${colors[status]}22`, 
+      color: colors[status],
+      display: 'inline-flex',
+      alignItems: 'center',
+      gap: '4px'
+    }}>
+      <div style={{ width: 6, height: 6, borderRadius: '50%', background: colors[status] }}></div>
+      {status}
+    </span>
+  );
+};
 
 const MapExplorer = () => {
   const { stations, isLocationEnabled, toggleLocation } = useData();
+  const [district, setDistrict] = useState('All Districts');
+  const [selectedStation, setSelectedStation] = useState(null);
+  const [filteredStations, setFilteredStations] = useState(stations);
+
+  useEffect(() => {
+    let result = stations;
+    if (district !== 'All Districts') {
+      result = result.filter(s => s.district === district);
+    }
+    setFilteredStations(result);
+  }, [district, stations]);
+
+  const mapCenter = [2.1896, 102.2501]; // Melaka City coordinates
+
+  const getPos = (dist) => {
+    if (dist === 'Jasin') return [2.3102, 102.4312];
+    if (dist === 'Alor Gajah') return [2.3846, 102.2132];
+    return [2.1896, 102.2501];
+  };
 
   return (
     <div style={{ height: 'calc(100vh - 120px)', display: 'flex', flexDirection: 'column' }}>
       <div className="mb-3" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <div>
           <h2>Map Explorer</h2>
-          <p style={{ color: 'var(--color-text-muted)', margin: 0 }}>Visual overview of the Melaka EV Charging network.</p>
+          <p style={{ color: 'var(--color-text-muted)', margin: 0 }}>Interactive view of the Melaka EV Charging network.</p>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: '20px' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '12px', background: 'white', padding: '8px 16px', borderRadius: '30px', boxShadow: 'var(--shadow-sm)', border: '1px solid rgba(0,0,0,0.05)' }}>
@@ -42,75 +99,36 @@ const MapExplorer = () => {
               }} />
             </button>
           </div>
-          <div style={{ display: 'flex', gap: '16px' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.85rem' }}>
-              <div className="bay-indicator available"></div> Available
-            </div>
-          </div>
         </div>
       </div>
 
-      <div style={{ flex: 1, display: 'grid', gridTemplateColumns: '1fr 350px', gap: '24px', position: 'relative' }}>
-        <div className="card" style={{ padding: '0', position: 'relative', overflow: 'hidden', background: '#e0dfdb' }}>
-          {/* Mock Map Background */}
-          <div style={{ 
-            width: '100%', height: '100%', 
-            backgroundImage: 'radial-gradient(#ccc 1px, transparent 1px)', 
-            backgroundSize: '20px 20px', 
-            position: 'absolute', opacity: 0.5 
-          }} />
-          
-          <div style={{ position: 'absolute', top: '10%', left: '10%', padding: '10px', background: 'white', borderRadius: '8px', boxShadow: 'var(--shadow-sm)' }}>
-            <h4 style={{ margin: 0 }}>Alor Gajah</h4>
-          </div>
-          <div style={{ position: 'absolute', bottom: '20%', left: '40%', padding: '10px', background: 'white', borderRadius: '8px', boxShadow: 'var(--shadow-sm)' }}>
-            <h4 style={{ margin: 0 }}>Melaka Tengah</h4>
-          </div>
-          <div style={{ position: 'absolute', bottom: '40%', right: '15%', padding: '10px', background: 'white', borderRadius: '8px', boxShadow: 'var(--shadow-sm)' }}>
-            <h4 style={{ margin: 0 }}>Jasin</h4>
-          </div>
-
-          {/* Station Pins */}
-          {stations.map((stn, i) => {
-            const positions = [
-              { top: '60%', left: '45%' },
-              { top: '55%', left: '80%' },
-              { top: '25%', left: '20%' },
-              { top: '40%', left: '50%' }
-            ];
-            const pos = positions[i % positions.length];
-            return (
-              <div 
-                key={stn.id}
-                style={{ 
-                  position: 'absolute', 
-                  ...pos, 
-                  transform: 'translate(-50%, -100%)',
-                  cursor: 'pointer',
-                  display: 'flex',
-                  flexDirection: 'column',
-                  alignItems: 'center'
+      <div style={{ flex: 1, display: 'grid', gridTemplateColumns: '1fr 340px', gap: '24px', position: 'relative' }}>
+        <div className="card" style={{ padding: '0', position: 'relative', overflow: 'hidden', height: '100%' }}>
+          <MapContainer center={mapCenter} zoom={11} style={{ height: '100%', width: '100%', zIndex: 1 }}>
+            <TileLayer
+              attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+              url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+            />
+            {filteredStations.map((stn) => (
+              <Marker 
+                key={stn.id} 
+                position={getPos(stn.district)}
+                eventHandlers={{
+                  click: () => setSelectedStation(stn),
                 }}
               >
-                <div style={{ 
-                  background: stn.status === 'Online' ? 'white' : '#f8d7da', 
-                  padding: '4px 10px', 
-                  borderRadius: '20px', 
-                  boxShadow: '0 4px 10px rgba(0,0,0,0.1)',
-                  fontSize: '0.75rem',
-                  fontWeight: 700,
-                  marginBottom: '4px',
-                  whiteSpace: 'nowrap',
-                  border: `2px solid ${stn.status === 'Online' ? 'var(--color-success)' : 'var(--color-danger)'}`
-                }}>
-                  {stn.name.split(' ').pop()}
-                </div>
-                <MapPin size={32} fill={stn.status === 'Online' ? 'var(--color-success)' : 'var(--color-danger)'} color="white" />
-              </div>
-            );
-          })}
+                <Popup>
+                  <div style={{ padding: '5px' }}>
+                    <strong style={{ fontSize: '1rem' }}>{stn.name}</strong>
+                    <div style={{ marginTop: '5px' }}>
+                      <StatusBadge status={stn.status} />
+                    </div>
+                  </div>
+                </Popup>
+              </Marker>
+            ))}
+          </MapContainer>
 
-          {/* Location Blocker Overlay */}
           {!isLocationEnabled && (
             <div style={{ 
               position: 'absolute', 
@@ -120,60 +138,89 @@ const MapExplorer = () => {
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
-              zIndex: 10
+              zIndex: 1000
             }}>
-              <div className="card" style={{ maxWidth: '300px', textAlign: 'center', padding: '30px' }}>
+              <div className="card" style={{ maxWidth: '300px', textAlign: 'center', padding: '40px 30px', boxShadow: '0 10px 40px rgba(0,0,0,0.1)' }}>
                 <div style={{ color: 'var(--color-danger)', marginBottom: '15px' }}>
-                  <Info size={48} />
+                  <Navigation size={56} />
                 </div>
                 <h3>Location Required</h3>
-                <p style={{ fontSize: '0.9rem', color: 'var(--color-text-muted)', marginBottom: '20px' }}>
+                <p style={{ fontSize: '0.9rem', color: 'var(--color-text-muted)', marginBottom: '24px', lineHeight: '1.5' }}>
                   Please turn on your location to access the Melaka EV Network map and find nearby stations.
                 </p>
                 <button 
                   onClick={toggleLocation}
                   className="login-btn" 
-                  style={{ padding: '10px 20px', fontSize: '0.9rem' }}
+                  style={{ padding: '12px 24px', fontSize: '0.9rem' }}
                 >
-                  Enable Location
+                  Enable Location Service
                 </button>
               </div>
             </div>
           )}
         </div>
 
-        <div className="card" style={{ display: 'flex', flexDirection: 'column' }}>
-          <div className="card-header">
-            <h3 style={{ margin: 0 }}>Station Details</h3>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+          <div className="card" style={{ padding: '20px' }}>
+            <h3 style={{ margin: '0 0 15px 0', fontSize: '1rem' }}>District Filter</h3>
+            <select 
+              className="styled-input"
+              value={district}
+              onChange={(e) => setDistrict(e.target.value)}
+            >
+              <option>All Districts</option>
+              <option>Melaka Tengah</option>
+              <option>Alor Gajah</option>
+              <option>Jasin</option>
+            </select>
           </div>
-          <div className="card-body" style={{ flex: 1, overflowY: 'auto' }}>
-            <div className="mb-3" style={{ padding: '16px', border: '1px solid rgba(0,0,0,0.05)', borderRadius: '12px', background: 'white' }}>
-              <div style={{ display: 'flex', gap: '12px', marginBottom: '12px' }}>
-                <div style={{ width: '40px', height: '40px', background: 'var(--color-primary)', borderRadius: '8px', display: 'flex', alignItems: 'center', justifySelf: 'center', color: 'white', padding: '8px' }}>
-                  <Navigation size={24} />
-                </div>
-                <div>
-                  <h4 style={{ margin: 0 }}>Stesen EV Melaka Tengah</h4>
-                  <p style={{ margin: 0, fontSize: '0.8rem', color: 'var(--color-text-muted)' }}>Bandar Hilir, Melaka</p>
-                </div>
-              </div>
-              <div style={{ display: 'flex', gap: '20px', marginBottom: '16px' }}>
-                <div>
-                  <div style={{ fontSize: '0.7rem', color: 'var(--color-text-muted)' }}>AVAILABILITY</div>
-                  <div style={{ fontWeight: 700, color: 'var(--color-success)' }}>2 / 4 Units</div>
-                </div>
-                <div>
-                  <div style={{ fontSize: '0.7rem', color: 'var(--color-text-muted)' }}>CHARGER TYPE</div>
-                  <div style={{ fontWeight: 700 }}>Fast DC (60kW)</div>
-                </div>
-              </div>
-              <button className="btn-export" style={{ width: '100%', justifyContent: 'center' }}>Book Now</button>
-            </div>
 
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '12px', borderRadius: '8px', background: 'rgba(212, 175, 55, 0.1)', color: 'var(--color-accent)' }}>
-              <Info size={16} />
-              <div style={{ fontSize: '0.85rem' }}>Select a pin on the map to view detailed availability and technical specs.</div>
-            </div>
+          <div className="card" style={{ flex: 1, padding: '24px', display: 'flex', flexDirection: 'column' }}>
+            {selectedStation ? (
+              <div style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '15px' }}>
+                  <img src="/logo.png" alt="Logo" style={{ height: '32px', width: 'auto' }} />
+                  <StatusBadge status={selectedStation.status} />
+                </div>
+                <h3 style={{ margin: '0 0 4px 0' }}>{selectedStation.name}</h3>
+                <p style={{ color: 'var(--color-text-muted)', margin: '0 0 20px 0', fontSize: '0.9rem' }}>{selectedStation.district}, Melaka</p>
+                
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', marginBottom: '24px' }}>
+                  <div style={{ padding: '12px', background: '#f8f8f8', borderRadius: '10px' }}>
+                    <div style={{ fontSize: '0.75rem', color: '#888', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '4px' }}>Rate</div>
+                    <div style={{ fontWeight: 700 }}>{selectedStation.price}</div>
+                  </div>
+                  <div style={{ padding: '12px', background: '#f8f8f8', borderRadius: '10px' }}>
+                    <div style={{ fontSize: '0.75rem', color: '#888', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '4px' }}>Type</div>
+                    <div style={{ fontWeight: 700 }}>{selectedStation.type}</div>
+                  </div>
+                </div>
+
+                <div style={{ flex: 1 }}>
+                  <h4 style={{ margin: '0 0 12px 0', fontSize: '0.9rem' }}>Bay Availability</h4>
+                  <div style={{ display: 'grid', gap: '10px' }}>
+                    {selectedStation.bays?.map(bay => (
+                      <div key={bay.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 14px', background: 'white', border: '1px solid #eee', borderRadius: '8px' }}>
+                        <div style={{ fontSize: '0.9rem', fontWeight: 500 }}>Charging Bay #{bay.id}</div>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.8rem', fontWeight: 600, color: bay.status === 'available' ? 'var(--color-success)' : 'var(--color-danger)' }}>
+                          <div style={{ width: 8, height: 8, borderRadius: '50%', background: bay.status === 'available' ? 'var(--color-success)' : 'var(--color-danger)' }}></div>
+                          {bay.status === 'available' ? 'Available' : 'Occupied'}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                <button className="login-btn" style={{ marginTop: '20px' }}>
+                  Reserve Now
+                </button>
+              </div>
+            ) : (
+              <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', textAlign: 'center', color: 'var(--color-text-muted)' }}>
+                <Search size={48} style={{ opacity: 0.2, marginBottom: '15px' }} />
+                <p>Select a charging station on the map to view details and availability.</p>
+              </div>
+            )}
           </div>
         </div>
       </div>
