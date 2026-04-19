@@ -88,18 +88,16 @@ const FormalReportTemplate = React.forwardRef(({ data, tableData }, ref) => {
 
       <div className="report-section">
         <h3 className="section-title">Weekly Energy Consumption Analysis</h3>
-        <div style={{ height: '300px', width: '700px', marginTop: '20px' }}>
-          <ResponsiveContainer width="100%" height="100%">
-            <BarChart data={data}>
-              <CartesianGrid strokeDasharray="3 3" vertical={false} />
-              <XAxis dataKey="name" />
-              <YAxis />
-              <Legend />
-              <Bar dataKey="MelakaTengah" name="Melaka Tengah" fill="#800000" isAnimationActive={false} />
-              <Bar dataKey="Jasin" name="Jasin" fill="#D4AF37" isAnimationActive={false} />
-              <Bar dataKey="AlorGajah" name="Alor Gajah" fill="#2E7D32" isAnimationActive={false} />
-            </BarChart>
-          </ResponsiveContainer>
+        <div style={{ marginTop: '20px' }}>
+          <BarChart width={700} height={300} data={data}>
+            <CartesianGrid strokeDasharray="3 3" vertical={false} />
+            <XAxis dataKey="name" />
+            <YAxis />
+            <Legend />
+            <Bar dataKey="MelakaTengah" name="Melaka Tengah" fill="#800000" isAnimationActive={false} />
+            <Bar dataKey="Jasin" name="Jasin" fill="#D4AF37" isAnimationActive={false} />
+            <Bar dataKey="AlorGajah" name="Alor Gajah" fill="#2E7D32" isAnimationActive={false} />
+          </BarChart>
         </div>
       </div>
 
@@ -260,8 +258,8 @@ const ReportingDashboard = () => {
         </div>
       </div>
 
-      {/* Hidden Formal Template - For Print Only - Uses off-screen positioning instead of display:none so Recharts can calculate dimensions */}
-      <div style={{ position: 'absolute', top: '-9999px', left: '-9999px', width: '800px' }}>
+      {/* Hidden Formal Template - For Print Only - Uses off-screen positioning and zero opacity so it takes up space/renders but stays invisible */}
+      <div style={{ position: 'absolute', top: '-9999px', left: '-9999px', width: '800px', opacity: 0, pointerEvents: 'none' }}>
         <FormalReportTemplate ref={printRef} data={mockChartData} tableData={mockTableData} />
       </div>
     </div>

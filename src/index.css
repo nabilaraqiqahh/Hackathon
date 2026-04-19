@@ -402,7 +402,6 @@ button {
 
 /* Formal Report Styles (Print Only) */
 .formal-report {
-  display: none;
   background-color: white !important;
   color: #333 !important;
   font-family: 'Inter', sans-serif;
