@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { LayoutDashboard, Map, Zap, Calendar, CreditCard, User, LogOut, ChevronUp, UserCircle, Car, MessageSquare } from 'lucide-react';
+import { LayoutDashboard, Map, Zap, Calendar, CreditCard, User, LogOut, ChevronUp, UserCircle, Car, MessageSquare, Wrench } from 'lucide-react';
 import { NavLink, useNavigate } from 'react-router-dom';
 
 import { useData } from '../context/DataContext';
@@ -26,6 +26,8 @@ const Sidebar = () => {
     { title: 'Map Explorer', icon: <Map size={20} />, path: '/map' },
     { title: 'Stations Tracker', icon: <Zap size={20} />, path: '/stations' },
     { title: 'User Management', icon: <User size={20} />, path: '/users' },
+    { title: 'Feedback Reports', icon: <MessageSquare size={20} />, path: '/feedback-reports' },
+    { title: 'Maintenance', icon: <Wrench size={20} />, path: '/maintenance' },
     { title: 'Analytics Report', icon: <LayoutDashboard size={20} />, path: '/report' },
   ];
 
@@ -81,28 +83,6 @@ const Sidebar = () => {
             >
               <UserCircle size={18} color="var(--color-primary)" />
               Personal Information
-            </div>
-            <div 
-              style={{ padding: '12px 16px', display: 'flex', alignItems: 'center', gap: '12px', cursor: 'pointer', transition: 'background 0.2s', fontSize: '0.9rem', fontWeight: 500 }}
-              onClick={() => handleMenuNavigate('/vehicles')}
-              onMouseOver={e => e.currentTarget.style.background = 'rgba(0,0,0,0.02)'}
-              onMouseOut={e => e.currentTarget.style.background = 'transparent'}
-            >
-              <Car size={18} color="var(--color-primary)" />
-              My Vehicles
-            </div>
-
-            <div style={{ borderTop: '1px solid rgba(0,0,0,0.05)', margin: '8px 0' }}></div>
-            
-            <div style={{ padding: '8px 16px', fontSize: '0.75rem', fontWeight: 700, color: 'var(--color-text-muted)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Support</div>
-            <div 
-              style={{ padding: '12px 16px', display: 'flex', alignItems: 'center', gap: '12px', cursor: 'pointer', transition: 'background 0.2s', fontSize: '0.9rem', fontWeight: 500 }}
-              onClick={() => handleMenuNavigate('/feedback')}
-              onMouseOver={e => e.currentTarget.style.background = 'rgba(0,0,0,0.02)'}
-              onMouseOut={e => e.currentTarget.style.background = 'transparent'}
-            >
-              <MessageSquare size={18} color="var(--color-primary)" />
-              Send Feedback
             </div>
           </div>
         )}

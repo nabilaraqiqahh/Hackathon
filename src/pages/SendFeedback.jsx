@@ -1,7 +1,9 @@
 import React, { useState } from 'react';
 import { Send, MessageSquare, AlertTriangle, CheckCircle } from 'lucide-react';
+import { useData } from '../context/DataContext';
 
 const SendFeedback = () => {
+  const { addFeedback } = useData();
   const [isSubmitted, setIsSubmitted] = useState(false);
   const [formData, setFormData] = useState({
     type: 'general',
@@ -11,6 +13,13 @@ const SendFeedback = () => {
 
   const handleSubmit = (e) => {
     e.preventDefault();
+    if (formData.type === 'issue' && !formData.station) {
+      alert("Please select a station for the issue.");
+      return;
+    }
+    
+    addFeedback(formData);
+    
     setIsSubmitted(true);
     setTimeout(() => {
       setIsSubmitted(false);

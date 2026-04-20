@@ -750,6 +750,13 @@ const MapExplorer = () => {
         </div>
       </div>
 
+      {searchQuery && (
+        <div style={{ background: '#f4f7fb', padding: '12px 16px', borderRadius: '8px', marginBottom: '16px', fontSize: '0.9rem', color: '#1e3a8a', display: 'flex', justifyContent: 'space-between', alignItems: 'center', boxShadow: 'var(--shadow-sm)' }}>
+          <span>Showing results for <strong>"{searchQuery}"</strong></span>
+          <span className="badge" style={{ background: 'var(--color-primary)', color: 'white' }}>{filtered.length} matching stations</span>
+        </div>
+      )}
+
       {/* ── Body ── */}
       <div style={{ flex: 1, display: 'grid', gridTemplateColumns: '1fr 340px', gap: '24px', minHeight: 0 }}>
 

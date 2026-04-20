@@ -10,6 +10,8 @@ import ReportingDashboard from './pages/ReportingDashboard';
 import EditProfile from './pages/EditProfile';
 import MyVehicles from './pages/MyVehicles';
 import SendFeedback from './pages/SendFeedback';
+import FeedbackManagement from './pages/FeedbackManagement';
+import MaintenanceTracker from './pages/MaintenanceTracker';
 
 import { useData } from './context/DataContext';
 import LoginPage from './pages/LoginPage';
@@ -77,6 +79,18 @@ function App() {
         <Route path="/report" element={
           <ProtectedRoute allowedRoles={['Admin']}>
             <DashboardLayout><ReportingDashboard /></DashboardLayout>
+          </ProtectedRoute>
+        } />
+        
+        <Route path="/feedback-reports" element={
+          <ProtectedRoute allowedRoles={['Admin']}>
+            <DashboardLayout><FeedbackManagement /></DashboardLayout>
+          </ProtectedRoute>
+        } />
+
+        <Route path="/maintenance" element={
+          <ProtectedRoute allowedRoles={['Admin']}>
+            <DashboardLayout><MaintenanceTracker /></DashboardLayout>
           </ProtectedRoute>
         } />
 
