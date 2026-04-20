@@ -3,15 +3,21 @@ import { useData } from '../context/DataContext';
 import { UserPlus, Trash2, Edit2, Search } from 'lucide-react';
 
 const UserManagement = () => {
-  const { users, addUser, deleteUser } = useData();
+  const { users, addUser, deleteUser, updateUser } = useData();
   const [showModal, setShowModal] = useState(false);
   const [newUser, setNewUser] = useState({ name: '', email: '', type: 'Driver' });
+  const [editingUser, setEditingUser] = useState(null);
 
   const handleSubmit = (e) => {
     e.preventDefault();
-    addUser(newUser);
+    if (editingUser) {
+      updateUser(newUser);
+    } else {
+      addUser(newUser);
+    }
     setNewUser({ name: '', email: '', type: 'Driver' });
     setShowModal(false);
+    setEditingUser(null);
   };
 
   return (
@@ -21,7 +27,11 @@ const UserManagement = () => {
           <h2>User Management</h2>
           <p style={{ color: 'var(--color-text-muted)', margin: 0 }}>Create and manage driver accounts and administrative profiles.</p>
         </div>
-        <button className="btn-export" onClick={() => setShowModal(true)}>
+        <button className="btn-export" onClick={() => {
+          setEditingUser(null);
+          setNewUser({ name: '', email: '', type: 'Driver' });
+          setShowModal(true);
+        }}>
           <UserPlus size={18} />
           Add User
         </button>
@@ -47,13 +57,13 @@ const UserManagement = () => {
                 <th>Email</th>
                 <th>User Type</th>
                 <th>Joined Date</th>
-                <th className="text-right">Actions</th>
+                <th className="text-center" style={{ textAlign: 'center' }}>Actions</th>
               </tr>
             </thead>
             <tbody>
-              {users.map(user => (
+              {users.map((user, index) => (
                 <tr key={user.id}>
-                  <td>{user.id}</td>
+                  <td>{index + 1}</td>
                   <td style={{ fontWeight: 600 }}>{user.name}</td>
                   <td>{user.email}</td>
                   <td>
@@ -62,8 +72,17 @@ const UserManagement = () => {
                     </span>
                   </td>
                   <td>{user.joined}</td>
-                  <td className="text-right">
-                    <button style={{ background: 'transparent', color: 'var(--color-text-muted)', marginRight: '12px' }}><Edit2 size={18}/></button>
+                  <td className="text-center" style={{ textAlign: 'center' }}>
+                    <button 
+                      style={{ background: 'transparent', color: 'var(--color-text-muted)', marginRight: '12px', cursor: 'pointer', border: 'none' }}
+                      onClick={() => {
+                        setEditingUser(user);
+                        setNewUser(user);
+                        setShowModal(true);
+                      }}
+                    >
+                      <Edit2 size={18}/>
+                    </button>
                     <button 
                       onClick={() => deleteUser(user.id)}
                       style={{ background: 'transparent', color: 'var(--color-danger)' }}
@@ -82,7 +101,7 @@ const UserManagement = () => {
         <div className="modal-overlay">
           <div className="modal-content card" style={{ width: '450px', margin: '10vh auto' }}>
             <div className="card-header">
-              <h3 style={{ margin: 0 }}>Add New User</h3>
+              <h3 style={{ margin: 0 }}>{editingUser ? 'Edit User' : 'Add New User'}</h3>
             </div>
             <div className="card-body">
               <form onSubmit={handleSubmit}>
@@ -117,8 +136,20 @@ const UserManagement = () => {
                   </select>
                 </div>
                 <div style={{ display: 'flex', gap: '12px' }}>
-                  <button type="submit" className="btn-export" style={{ flex: 1, justifyContent: 'center' }}>Save User</button>
-                  <button type="button" onClick={() => setShowModal(false)} style={{ flex: 1, background: '#eee', borderRadius: '8px', fontWeight: 600 }}>Cancel</button>
+                  <button type="submit" className="btn-export" style={{ flex: 1, justifyContent: 'center' }}>
+                    {editingUser ? 'Update User' : 'Save User'}
+                  </button>
+                  <button 
+                    type="button" 
+                    onClick={() => { 
+                      setShowModal(false); 
+                      setEditingUser(null); 
+                      setNewUser({ name: '', email: '', type: 'Driver' }); 
+                    }} 
+                    style={{ flex: 1, background: '#eee', borderRadius: '8px', fontWeight: 600, border: 'none', cursor: 'pointer' }}
+                  >
+                    Cancel
+                  </button>
                 </div>
               </form>
             </div>
