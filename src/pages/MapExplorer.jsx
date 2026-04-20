@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Navigation, Search, X, ArrowLeft } from 'lucide-react';
+import { Navigation, Search, X, ArrowLeft, Check, CreditCard, Smartphone } from 'lucide-react';
 import { MapContainer, TileLayer, Marker, Popup, CircleMarker, useMap } from 'react-leaflet';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
@@ -199,11 +199,7 @@ function calculateDistance(lat1, lon1, lat2, lon2) {
 }
 
 const MapExplorer = () => {
-<<<<<<< HEAD
   const { isLocationEnabled, toggleLocation, currentUser, reserveStation, reservations, addPayment } = useData();
-=======
-  const { isLocationEnabled, toggleLocation } = useData();
->>>>>>> origin/member-4
   const navigate = useNavigate();
 
   const [stations, setStations]               = useState([]);
@@ -214,6 +210,12 @@ const MapExplorer = () => {
   const filterRef                             = useRef(null);
 
   const [selectedStation, setSelectedStation] = useState(null);
+  const [selectedPort, setSelectedPort]       = useState(1);
+  const [showPaymentModal, setShowPaymentModal] = useState(false);
+  const [paymentMethod, setPaymentMethod]       = useState('card');
+  const [targetAmount, setTargetAmount]         = useState(10);
+  const [isProcessing, setIsProcessing]         = useState(false);
+  const [isSuccess, setIsSuccess]               = useState(false);
 
   const [userLocation, setUserLocation]       = useState(null);
 
@@ -347,7 +349,6 @@ const MapExplorer = () => {
     setChargerType("All Types");
   }
 
-<<<<<<< HEAD
   const handlePayNow = () => {
     setIsProcessing(true);
     setTimeout(() => {
@@ -766,6 +767,18 @@ const MapExplorer = () => {
 
                 <div style={{ flex: 1 }}></div>
 
+                {selectedStation.status === 'available' && currentUser?.type === 'User' && (
+                  <button 
+                    onClick={() => setShowPaymentModal(true)}
+                    className="login-btn"
+                    style={{ width: '100%', padding: '14px', borderRadius: '12px', fontWeight: 700, fontSize: '0.95rem', background: 'var(--color-primary)', color: 'white', border: 'none', cursor: 'pointer', boxShadow: '0 4px 12px rgba(122,18,18,0.2)', transition: 'transform 0.2s, box-shadow 0.2s' }}
+                    onMouseOver={e => { e.currentTarget.style.transform = 'translateY(-2px)'; e.currentTarget.style.boxShadow = '0 6px 16px rgba(122,18,18,0.3)'; }}
+                    onMouseOut={e => { e.currentTarget.style.transform = 'translateY(0)'; e.currentTarget.style.boxShadow = '0 4px 12px rgba(122,18,18,0.2)'; }}
+                  >
+                    Reserve Now
+                  </button>
+                )}
+
                 {selectedStation.connections > 1 && (
                   <div style={{ marginTop: '16px' }}>
                     <h4 style={{ margin: '0 0 10px 0', fontSize: '0.75rem', color: '#888', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Available Ports</h4>
@@ -773,17 +786,21 @@ const MapExplorer = () => {
                       {Array.from({ length: selectedStation.connections }).map((_, i) => {
                         const portNum = i + 1;
                         const info = getPortInfo(selectedStation, portNum);
+                        const isSel = selectedPort === portNum;
                         
                         return (
                           <div
                             key={i}
+                            onClick={() => setSelectedPort(portNum)}
                             style={{
                               padding: '10px 4px', borderRadius: '8px', 
-                              border: `2px solid ${info.color}22`,
-                              background: `${info.color}08`,
+                              border: isSel ? `2px solid ${info.color}` : `2px solid ${info.color}22`,
+                              background: isSel ? `${info.color}15` : `${info.color}08`,
                               color: info.color,
-                              fontWeight: 600,
-                              display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '4px'
+                              cursor: 'pointer', fontWeight: 600,
+                              display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '4px',
+                              transition: 'all 0.2s',
+                              transform: isSel ? 'scale(1.05)' : 'scale(1)'
                             }}
                           >
                             <span style={{ fontSize: '0.85rem' }}>Port {portNum}</span>
@@ -850,6 +867,108 @@ const MapExplorer = () => {
       </div>
 
       <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
+
+      {showPaymentModal && selectedStation && (
+        <PaymentModal 
+          station={selectedStation}
+          amount={targetAmount}
+          method={paymentMethod}
+          setMethod={setPaymentMethod}
+          onClose={() => setShowPaymentModal(false)}
+          onPay={handlePayNow}
+          isProcessing={isProcessing}
+          isSuccess={isSuccess}
+        />
+      )}
+    </div>
+  );
+};
+
+const PaymentModal = ({ station, amount, method, setMethod, onClose, onPay, isProcessing, isSuccess }) => {
+  return (
+    <div style={{
+      position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(4px)',
+      display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 9999, padding: '20px'
+    }}>
+      <div className="card" style={{ width: '100%', maxWidth: '400px', padding: 0, overflow: 'hidden', animation: 'modalSlide 0.3s ease-out' }}>
+        <div style={{ padding: '24px', background: 'var(--color-primary)', color: 'white' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+            <h3 style={{ margin: 0, color: 'white' }}>Payment Secure</h3>
+            <button onClick={onClose} style={{ background: 'rgba(255,255,255,0.2)', border: 'none', color: 'white', borderRadius: '50%', width: '30px', height: '30px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <X size={18} />
+            </button>
+          </div>
+          <p style={{ margin: 0, opacity: 0.9, fontSize: '0.85rem' }}>Reserve your slot at {station.name}</p>
+        </div>
+
+        <div style={{ padding: '24px' }}>
+          {isSuccess ? (
+            <div style={{ textAlign: 'center', padding: '20px 0' }}>
+              <div style={{ width: '64px', height: '64px', background: 'var(--color-success)', color: 'white', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 16px' }}>
+                <Check size={32} />
+              </div>
+              <h3 style={{ margin: '0 0 8px 0' }}>Payment Successful!</h3>
+              <p style={{ color: '#666', fontSize: '0.9rem' }}>Redirecting to your reservations...</p>
+            </div>
+          ) : (
+            <>
+              <div style={{ marginBottom: '24px', textAlign: 'center', padding: '15px', background: '#f8f9fa', borderRadius: '12px', border: '1px dashed #ddd' }}>
+                <div style={{ fontSize: '0.75rem', color: '#888', textTransform: 'uppercase', marginBottom: '4px' }}>Pre-authorization Hold</div>
+                <div style={{ fontSize: '1.8rem', fontWeight: 800, color: 'var(--color-primary)' }}>RM {amount.toFixed(2)}</div>
+                <div style={{ fontSize: '0.7rem', color: '#999', marginTop: '4px' }}>*Refundable if cancelled within 15 mins</div>
+              </div>
+
+              <div style={{ marginBottom: '24px' }}>
+                <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 700, color: '#666', textTransform: 'uppercase', marginBottom: '10px' }}>Select Method</label>
+                <div style={{ display: 'grid', gap: '10px' }}>
+                  <div 
+                    onClick={() => setMethod('card')}
+                    style={{ 
+                      padding: '14px', borderRadius: '12px', border: method === 'card' ? '2px solid var(--color-primary)' : '1px solid #eee',
+                      background: method === 'card' ? 'rgba(122,18,18,0.03)' : 'white', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '12px'
+                    }}
+                  >
+                    <CreditCard size={20} color={method === 'card' ? 'var(--color-primary)' : '#888'} />
+                    <span style={{ fontWeight: 600, fontSize: '0.9rem' }}>Credit / Debit Card</span>
+                  </div>
+                  <div 
+                    onClick={() => setMethod('fpx')}
+                    style={{ 
+                      padding: '14px', borderRadius: '12px', border: method === 'fpx' ? '2px solid var(--color-primary)' : '1px solid #eee',
+                      background: method === 'fpx' ? 'rgba(122,18,18,0.03)' : 'white', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '12px'
+                    }}
+                  >
+                    <Smartphone size={20} color={method === 'fpx' ? 'var(--color-primary)' : '#888'} />
+                    <span style={{ fontWeight: 600, fontSize: '0.9rem' }}>FPX Online Banking</span>
+                  </div>
+                </div>
+              </div>
+
+              <button 
+                onClick={onPay}
+                disabled={isProcessing}
+                className="login-btn"
+                style={{ width: '100%', padding: '16px', borderRadius: '12px', position: 'relative', overflow: 'hidden' }}
+              >
+                {isProcessing ? (
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '10px' }}>
+                    <div style={{ width: '18px', height: '18px', border: '3px solid rgba(255,255,255,0.3)', borderTop: '3px solid white', borderRadius: '50%', animation: 'spin 1s linear infinite' }}></div>
+                    Processing...
+                  </div>
+                ) : (
+                  `Pay RM ${amount.toFixed(2)}`
+                )}
+              </button>
+            </>
+          )}
+        </div>
+      </div>
+      <style>{`
+        @keyframes modalSlide {
+          from { transform: translateY(20px); opacity: 0; }
+          to { transform: translateY(0); opacity: 1; }
+        }
+      `}</style>
     </div>
   );
 };
