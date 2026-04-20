@@ -49,6 +49,44 @@ switch ($method) {
                 $available_bays, $status, $price_per_kwh, $idle_fee
             ]);
             
+            if ($success) {
+                // JIT upsert station ports
+                for ($i = 1; $i <= $connectors; $i++) {
+                    // Logic from MapExplorer.jsx getPortInfo
+                    $isDC = stripos($charger_type, 'DC') !== false;
+                    $portType = $charger_type;
+                    $rate = $price_per_kwh;
+                    if ($connectors > 1) {
+                        if ($i % 2 == 1) {
+                            $portType = 'DC Fast';
+                            $rate = 1.20;
+                        } else {
+                            $portType = 'AC Standard';
+                            $rate = 0.90;
+                        }
+                    } else {
+                        if ($isDC) {
+                            $portType = 'DC Fast';
+                            $rate = 1.20;
+                        } else {
+                            $portType = 'AC Standard';
+                            $rate = 0.90;
+                        }
+                    }
+
+                    $portName = "Port $i";
+                    // Only insert if not exists (using ON DUPLICATE KEY UPDATE to avoid errors)
+                    // Wait, station_ports doesn't have a unique key on (station_id, port_name).
+                    // So we do a SELECT first.
+                    $checkQuery = "SELECT port_id FROM station_ports WHERE station_id = ? AND port_name = ?";
+                    $existingPort = executeQuery($checkQuery, [$input['station_id'], $portName]);
+                    if (empty($existingPort)) {
+                        $insertPortQuery = "INSERT INTO station_ports (station_id, port_name, charger_type, price_per_kwh, status) VALUES (?, ?, ?, ?, 'Available')";
+                        executeAction($insertPortQuery, [$input['station_id'], $portName, $portType, $rate]);
+                    }
+                }
+            }
+
             echo json_encode(["success" => $success, "message" => $success ? "Station synchronized" : "Failed to sync station"]);
         } else {
             echo json_encode(["success" => false, "message" => "Missing required fields"]);

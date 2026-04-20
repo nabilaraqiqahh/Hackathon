@@ -84,12 +84,26 @@ function createIcon(color) {
 const STATUS_COLOR = { available: "#22c55e", maintenance: "#f59e0b", full: "#ef4444", unknown: "#94a3b8" };
 const STATUS_LABEL = { available: "Available", maintenance: "Maintenance", full: "Full", unknown: "Unknown" };
 
-function deriveStatus(poi) {
+function deriveStatus(poi, reservations = [], stationName = "", totalConnections = 1) {
+  // First check local reservations to see if it's full
+  const activeReservations = reservations.filter(r => 
+    (r.station === stationName || r.station_name === stationName) && 
+    (r.status === 'Confirmed' || r.status === 'Active') &&
+    (r.date === new Date().toISOString().split('T')[0] || r.reservation_date === new Date().toISOString().split('T')[0])
+  );
+  
+  if (activeReservations.length >= totalConnections && totalConnections > 0) {
+    return "full";
+  }
+
+  // If not full locally, check OCM status
   const id = poi.StatusType?.ID;
   if (id === 50)  return "available";
   if (id === 75)  return "maintenance";
   if (id === 210) return "full";
-  return "unknown";
+  
+  // If OCM is unknown but we have it in our DB, we assume it's available since it's not locally full
+  return "available";
 }
 
 const getPortInfo = (station, portNum) => {
@@ -185,7 +199,7 @@ function calculateDistance(lat1, lon1, lat2, lon2) {
 }
 
 const MapExplorer = () => {
-  const { isLocationEnabled, toggleLocation, currentUser, reserveStation, reservations } = useData();
+  const { isLocationEnabled, toggleLocation, currentUser, reserveStation, reservations, addPayment } = useData();
   const navigate = useNavigate();
 
   const [stations, setStations]               = useState([]);
@@ -292,12 +306,14 @@ const MapExplorer = () => {
         const address = poi.AddressInfo?.AddressLine1 || "";
         const town    = poi.AddressInfo?.Town || "";
         
+        const status = deriveStatus(poi, reservations, title || "Unknown Station", conns.length || 1);
+        
         return {
           id: poi.ID, name: title || "Unknown Station",
           address, town,
           district: classifyDistrict(lat, lng, title, address, town),
           lat, lng,
-          status:      deriveStatus(poi),
+          status:      status,
           type:        baseType,
           usageCost:   poi.UsageCost || null,
           operator:    poi.OperatorInfo?.Title || "Unknown Operator",
@@ -319,7 +335,7 @@ const MapExplorer = () => {
     fetchStations();
     intervalRef.current = setInterval(fetchStations, 60000);
     return () => clearInterval(intervalRef.current);
-  }, []);
+  }, [reservations]); // Re-run if reservations change to update full/available status
 
   useEffect(() => {
     let watchId;
@@ -352,8 +368,15 @@ const MapExplorer = () => {
       const holdAmount = targetAmount === 'Full' ? 150 : targetAmount;
       
       reserveStation({
-        user: currentUser.name,
+        user_id: currentUser.id || currentUser.user_id,
+        user: currentUser.name || currentUser.full_name,
+        station_id: selectedStation.id,
         station: selectedStation.name,
+        address: selectedStation.address,
+        district: selectedStation.district,
+        operator: selectedStation.operator,
+        charger_type: selectedStation.type,
+        connections: selectedStation.connections,
         date: new Date().toISOString().split('T')[0],
         time: new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false }),
         targetAmount: holdAmount,
@@ -362,6 +385,14 @@ const MapExplorer = () => {
         power: selectedStation.name.match(/(\d+)\s*kW/i) ? `${selectedStation.name.match(/(\d+)\s*kW/i)[1]}kW` : (currentPortInfo.type.includes('DC') ? '120kW' : '11kW'),
         rate: currentPortInfo.rate,
         status: 'Confirmed'
+      });
+      
+      addPayment({
+        user_id: currentUser.id || currentUser.user_id,
+        user: currentUser.name || currentUser.full_name,
+        amount: holdAmount,
+        method: paymentMethod === 'card' ? 'Visa •••• 4242' : 'FPX Maybank2u',
+        date: new Date().toISOString().split('T')[0]
       });
       
       setIsProcessing(false);
