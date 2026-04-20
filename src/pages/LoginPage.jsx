@@ -11,21 +11,18 @@ const LoginPage = () => {
   const { login } = useData();
   const navigate = useNavigate();
 
-  const handleLogin = (e) => {
+  const handleLogin = async (e) => {
     e.preventDefault();
     setError('');
     setLoading(true);
 
-    // Mock login logic
-    setTimeout(() => {
-      const success = login(email);
-      if (success) {
-        navigate('/dashboard');
-      } else {
-        setError('Invalid credentials. Please use nabil@melaka.gov.my (Admin) or rafiq@gmail.com (Driver).');
-      }
-      setLoading(false);
-    }, 800);
+    const success = await login(email, password);
+    if (success) {
+      navigate('/dashboard');
+    } else {
+      setError('Invalid credentials. Please try again.');
+    }
+    setLoading(false);
   };
 
   return (
