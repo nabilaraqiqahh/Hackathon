@@ -62,9 +62,27 @@ export const DataProvider = ({ children }) => {
     { id: 'PAY-202', user: 'Ahmad Rafiq', amount: 'RM 22.50', date: '2026-04-18', status: 'Success' },
   ]);
 
+  const [currentUser, setCurrentUser] = useState(null);
+  const [isLocationEnabled, setIsLocationEnabled] = useState(false);
+
+  // Auth Helpers
+  const login = (email) => {
+    const user = users.find(u => u.email.toLowerCase() === email.toLowerCase());
+    if (user) {
+      setCurrentUser(user);
+      return true;
+    }
+    return false;
+  };
+
+  const logout = () => setCurrentUser(null);
+
+  const toggleLocation = () => setIsLocationEnabled(!isLocationEnabled);
+
   // CRUD Helpers
   const addUser = (user) => setUsers([...users, { ...user, id: `U00${users.length + 1}`, joined: new Date().toISOString().split('T')[0] }]);
   const deleteUser = (id) => setUsers(users.filter(u => u.id !== id));
+  const updateUser = (updatedUser) => setUsers(users.map(u => u.id === updatedUser.id ? updatedUser : u));
   
   const addStation = (stn) => setStations([...stations, { ...stn, id: `STN-00${stations.length + 1}`, bays: [] }]);
   const deleteStation = (id) => setStations(stations.filter(s => s.id !== id));
@@ -72,11 +90,17 @@ export const DataProvider = ({ children }) => {
     setStations(stations.map(s => s.id === id ? { ...s, status } : s));
   };
 
+  const reserveStation = (reservation) => {
+    setReservations([{ ...reservation, id: `RES-${100 + reservations.length + 1}` }, ...reservations]);
+  };
+
   const value = {
-    users, addUser, deleteUser,
+    users, addUser, deleteUser, updateUser,
     stations, addStation, deleteStation, updateStationStatus,
-    reservations,
-    payments
+    reservations, reserveStation,
+    payments,
+    currentUser, login, logout,
+    isLocationEnabled, toggleLocation
   };
 
   return <DataContext.Provider value={value}>{children}</DataContext.Provider>;
