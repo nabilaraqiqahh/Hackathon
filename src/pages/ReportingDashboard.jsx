@@ -30,13 +30,10 @@ const FormalReportTemplate = React.forwardRef(({ data, tableData }, ref) => {
       <div className="report-header">
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
           <div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-              <div style={{ width: '40px', height: '40px', background: '#800000', borderRadius: '8px', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'white' }}>
-                <Zap size={24} />
-              </div>
-              <div>
-                <h1 style={{ margin: 0, fontSize: '1.5rem', color: '#800000' }}>VOLT-PARK</h1>
-                <p style={{ margin: 0, fontSize: '0.8rem', color: '#666' }}>Melaka EV Charging Network</p>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+              <img src="/logo.png" alt="Volt-Park Logo" style={{ width: '180px', height: 'auto', objectFit: 'contain' }} />
+              <div style={{ borderLeft: '2px solid #ddd', paddingLeft: '16px', display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
+                <p style={{ margin: 0, fontSize: '1rem', color: '#444', fontWeight: 600, letterSpacing: '0.5px' }}>Melaka EV Charging Network</p>
               </div>
             </div>
             <div style={{ marginTop: '20px', fontSize: '0.85rem', color: '#444' }}>
@@ -101,12 +98,11 @@ const FormalReportTemplate = React.forwardRef(({ data, tableData }, ref) => {
         </div>
       </div>
 
-      <div className="report-section">
+      <div className="report-section" style={{ pageBreakBefore: 'always', paddingTop: '20px' }}>
         <h3 className="section-title">Detailed Transaction Records</h3>
         <table className="formal-table">
           <thead>
             <tr>
-              <th>ID</th>
               <th>Station / Location</th>
               <th>District</th>
               <th>Power (kWh)</th>
@@ -117,7 +113,6 @@ const FormalReportTemplate = React.forwardRef(({ data, tableData }, ref) => {
           <tbody>
             {tableData.map(log => (
               <tr key={log.id}>
-                <td>{log.id}</td>
                 <td>{log.station}</td>
                 <td>{log.district}</td>
                 <td>{log.power}</td>
@@ -229,7 +224,6 @@ const ReportingDashboard = () => {
             <table className="styled-table">
               <thead>
                 <tr>
-                  <th>Transaction ID</th>
                   <th>Station</th>
                   <th>District</th>
                   <th>Duration</th>
@@ -240,7 +234,6 @@ const ReportingDashboard = () => {
               <tbody>
                 {mockTableData.map(log => (
                   <tr key={log.id}>
-                    <td style={{ fontWeight: 500 }}>{log.id}</td>
                     <td>{log.station}</td>
                     <td>{log.district}</td>
                     <td>{log.duration}</td>

@@ -388,10 +388,20 @@ button {
 
 .station-card {
   transition: transform 0.2s;
+  overflow: visible;
 }
 
 .station-card:hover {
   transform: translateY(-4px);
+}
+
+.station-card .card-header {
+  border-radius: var(--radius-lg) var(--radius-lg) 0 0;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateX(-50%) translateY(-6px); }
+  to { opacity: 1; transform: translateX(-50%) translateY(0); }
 }
 
 .bay-indicator {
@@ -400,8 +410,40 @@ button {
   border-radius: 50%;
 }
 .bay-indicator.available { background-color: var(--color-success); }
-.bay-indicator.occupied { background-color: var(--color-danger); }
-.bay-indicator.offline { background-color: #ccc; }
+.bay-indicator.occupied { background-color: var(--color-warning); } /* Yellow */
+.bay-indicator.offline { background-color: var(--color-danger); } /* Red */
+
+/* Bay Interaction Animations & Wow Factor */
+@keyframes pulseGreen {
+  0% { box-shadow: 0 0 0 0 rgba(45, 138, 39, 0.5); }
+  70% { box-shadow: 0 0 0 10px rgba(45, 138, 39, 0); }
+  100% { box-shadow: 0 0 0 0 rgba(45, 138, 39, 0); }
+}
+
+@keyframes pulseRed {
+  0% { box-shadow: 0 0 0 0 rgba(211, 47, 47, 0.5); }
+  70% { box-shadow: 0 0 0 10px rgba(211, 47, 47, 0); }
+  100% { box-shadow: 0 0 0 0 rgba(211, 47, 47, 0); }
+}
+
+.bay-box {
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  position: relative;
+}
+
+.bay-box:hover {
+  transform: scale(1.08);
+  z-index: 2;
+  box-shadow: var(--shadow-sm);
+}
+
+.bay-box.animate-pulse.available {
+  animation: pulseGreen 0.6s ease-out;
+}
+
+.bay-box.animate-pulse.offline {
+  animation: pulseRed 0.6s ease-out;
+}
 
 /* Formal Report Styles (Print Only) */
 .formal-report {

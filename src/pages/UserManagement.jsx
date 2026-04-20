@@ -7,6 +7,12 @@ const UserManagement = () => {
   const [showModal, setShowModal] = useState(false);
   const [newUser, setNewUser] = useState({ name: '', email: '', type: 'Driver' });
   const [editingUser, setEditingUser] = useState(null);
+  const [searchTerm, setSearchTerm] = useState('');
+
+  const filteredUsers = users.filter(user => 
+    user.name.toLowerCase().includes(searchTerm.toLowerCase()) || 
+    user.email.toLowerCase().includes(searchTerm.toLowerCase())
+  );
 
   const handleSubmit = (e) => {
     e.preventDefault();
@@ -45,14 +51,21 @@ const UserManagement = () => {
               type="text" 
               placeholder="Search users..." 
               style={{ padding: '10px 10px 10px 40px', borderRadius: '8px', border: '1px solid rgba(0,0,0,0.1)', width: '100%', outline: 'none' }}
+              value={searchTerm}
+              onChange={e => setSearchTerm(e.target.value)}
             />
           </div>
         </div>
         <div className="card-body" style={{ padding: 0 }}>
+          {searchTerm && (
+            <div style={{ background: '#f4f7fb', padding: '12px 16px', borderBottom: '1px solid rgba(0,0,0,0.05)', fontSize: '0.9rem', color: '#1e3a8a', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <span>Showing results for <strong>"{searchTerm}"</strong></span>
+              <span className="badge" style={{ background: 'var(--color-primary)', color: 'white' }}>{filteredUsers.length} found</span>
+            </div>
+          )}
           <table className="styled-table">
             <thead>
               <tr>
-                <th>ID</th>
                 <th>Name</th>
                 <th>Email</th>
                 <th>User Type</th>
@@ -61,9 +74,8 @@ const UserManagement = () => {
               </tr>
             </thead>
             <tbody>
-              {users.map((user, index) => (
+              {filteredUsers.length > 0 ? filteredUsers.map((user, index) => (
                 <tr key={user.id}>
-                  <td>{index + 1}</td>
                   <td style={{ fontWeight: 600 }}>{user.name}</td>
                   <td>{user.email}</td>
                   <td>
@@ -91,7 +103,9 @@ const UserManagement = () => {
                     </button>
                   </td>
                 </tr>
-              ))}
+              )) : (
+                <tr><td colSpan="5" style={{ textAlign: 'center', padding: '40px', color: '#888' }}>No users found matching your search.</td></tr>
+              )}
             </tbody>
           </table>
         </div>

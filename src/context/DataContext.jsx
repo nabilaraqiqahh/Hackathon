@@ -62,7 +62,10 @@ export const DataProvider = ({ children }) => {
     { id: 'PAY-202', user: 'Ahmad Rafiq', amount: 'RM 22.50', date: '2026-04-18', method: 'Visa •••• 4242', energy: '18.0 kWh', receipt: 'RCP-8831', status: 'Success' },
   ]);
 
-  const [currentUser, setCurrentUser] = useState(null);
+  const [currentUser, setCurrentUser] = useState(() => {
+    const savedUser = localStorage.getItem('voltpark_user');
+    return savedUser ? JSON.parse(savedUser) : null;
+  });
   const [isLocationEnabled, setIsLocationEnabled] = useState(false);
   const [announcements, setAnnouncements] = useState([
     { 
@@ -83,17 +86,29 @@ export const DataProvider = ({ children }) => {
     }
   ]);
 
+  const [feedbacks, setFeedbacks] = useState([
+    { id: 'FB-001', authorName: 'Ahmad Rafiq', station: 'Alor Gajah', district: 'Alor Gajah', type: 'issue', message: 'Charger 1 is completely dead, screen not turning on.', status: 'Pending', createdAt: '2026-04-19' },
+  ]);
+
+  const [maintenanceTasks, setMaintenanceTasks] = useState([
+    { id: 'MT-101', feedbackId: 'FB-000', station: 'Stesen EV Melaka Tengah', issueDetails: 'Screen frozen', scheduledDate: '2026-04-21', technician: 'Ah Chong', notes: 'Take spare screen', status: 'Scheduled' }
+  ]);
+
   // Auth Helpers
   const login = (email) => {
     const user = users.find(u => u.email.toLowerCase() === email.toLowerCase());
     if (user) {
       setCurrentUser(user);
+      localStorage.setItem('voltpark_user', JSON.stringify(user));
       return true;
     }
     return false;
   };
 
-  const logout = () => setCurrentUser(null);
+  const logout = () => {
+    setCurrentUser(null);
+    localStorage.removeItem('voltpark_user');
+  };
 
   const toggleLocation = () => setIsLocationEnabled(!isLocationEnabled);
 
@@ -104,6 +119,7 @@ export const DataProvider = ({ children }) => {
     setUsers(users.map(u => u.id === updatedUser.id ? updatedUser : u));
     if (currentUser && currentUser.id === updatedUser.id) {
       setCurrentUser(updatedUser);
+      localStorage.setItem('voltpark_user', JSON.stringify(updatedUser));
     }
   };
 
@@ -132,7 +148,35 @@ export const DataProvider = ({ children }) => {
   const addStation = (stn) => setStations([...stations, { ...stn, id: `STN-00${stations.length + 1}`, bays: [] }]);
   const deleteStation = (id) => setStations(stations.filter(s => s.id !== id));
   const updateStationStatus = (id, status) => {
-    setStations(stations.map(s => s.id === id ? { ...s, status } : s));
+    setStations(stations.map(s => {
+      if (s.id === id) {
+        const updatedBays = status === 'Maintenance' 
+          ? s.bays.map(b => ({ ...b, status: 'offline' })) 
+          : s.bays.map(b => ({ ...b, status: b.status === 'offline' ? 'available' : b.status }));
+        return { ...s, status, bays: updatedBays };
+      }
+      return s;
+    }));
+  };
+
+  const updateBayStatus = (stationId, bayId, forcedStatus = null) => {
+    setStations(stations.map(s => {
+      if (s.id === stationId) {
+        const updatedBays = s.bays.map(b => {
+          if (b.id === bayId) {
+            const newStatus = forcedStatus ? forcedStatus : (b.status === 'offline' ? 'available' : 'offline');
+            return { ...b, status: newStatus };
+          }
+          return b;
+        });
+
+        const allOffline = updatedBays.length > 0 && updatedBays.every(b => b.status === 'offline');
+        const newStationStatus = allOffline ? 'Maintenance' : 'Online';
+
+        return { ...s, bays: updatedBays, status: newStationStatus };
+      }
+      return s;
+    }));
   };
 
   const addAnnouncement = (title, message, authorId, authorName) => {
@@ -176,15 +220,99 @@ export const DataProvider = ({ children }) => {
     }
   };
 
+  const addFeedback = (feedback) => {
+    const newFb = {
+      ...feedback,
+      id: `FB-${String(feedbacks.length + 1).padStart(3, '0')}`,
+      authorName: currentUser?.name || 'Anonymous',
+      status: 'Pending',
+      createdAt: new Date().toISOString().split('T')[0]
+    };
+    setFeedbacks([newFb, ...feedbacks]);
+  };
+
+  const assignMaintenance = (feedbackId, details) => {
+    const feedback = feedbacks.find(fb => fb.id === feedbackId);
+    if (!feedback) return;
+
+    const updatedFeedbacks = feedbacks.map(fb => fb.id === feedbackId ? { ...fb, status: 'In Progress' } : fb);
+    setFeedbacks(updatedFeedbacks);
+
+    const targetBay = details.bayId ? `(Bay ${details.bayId})` : '';
+
+    const newTask = {
+      id: `MT-${Date.now()}`,
+      feedbackId,
+      station: `${feedback.station} ${targetBay}`.trim(),
+      issueDetails: feedback.message,
+      scheduledDate: details.scheduledDate,
+      technician: details.technician,
+      notes: details.notes,
+      status: 'Ongoing',
+      linkedBayId: details.bayId,
+      originalStationName: feedback.station
+    };
+    setMaintenanceTasks([newTask, ...maintenanceTasks]);
+
+    const matchingStation = stations.find(s => s.name.includes(feedback.station) || s.district === feedback.station);
+    if (matchingStation) {
+      if (details.bayId) {
+        // Just take down the specific bay
+        const updatedBays = matchingStation.bays.map(b => b.id === parseInt(details.bayId) ? { ...b, status: 'offline' } : b);
+        const allOffline = updatedBays.every(b => b.status === 'offline');
+        const updatedStation = { ...matchingStation, status: allOffline ? 'Maintenance' : 'Online', bays: updatedBays };
+        setStations(stations.map(s => s.id === matchingStation.id ? updatedStation : s));
+      } else {
+        // Take down the whole station
+        const updatedStation = {
+          ...matchingStation,
+          status: 'Maintenance',
+          bays: matchingStation.bays.map(bay => ({ ...bay, status: 'offline' }))
+        };
+        setStations(stations.map(s => s.id === matchingStation.id ? updatedStation : s));
+      }
+    }
+  };
+
+  const completeMaintenance = (taskId) => {
+    const task = maintenanceTasks.find(t => t.id === taskId);
+    if (!task) return;
+
+    const updatedTasks = maintenanceTasks.map(t => t.id === taskId ? { ...t, status: 'Completed' } : t);
+    setMaintenanceTasks(updatedTasks);
+
+    const updatedFeedbacks = feedbacks.map(fb => fb.id === task.feedbackId ? { ...fb, status: 'Resolved' } : fb);
+    setFeedbacks(updatedFeedbacks);
+
+    const matchingStation = stations.find(s => s.name.includes(task.originalStationName || task.station.split(' (')[0]) || s.district === (task.originalStationName || task.station.split(' (')[0]));
+    if (matchingStation) {
+      if (task.linkedBayId) {
+        const updatedBays = matchingStation.bays.map(b => b.id === parseInt(task.linkedBayId) ? { ...b, status: 'available' } : b);
+        const allOffline = updatedBays.every(b => b.status === 'offline');
+        const updatedStation = { ...matchingStation, status: allOffline ? 'Maintenance' : 'Online', bays: updatedBays };
+        setStations(stations.map(s => s.id === matchingStation.id ? updatedStation : s));
+      } else {
+        const updatedStation = {
+          ...matchingStation,
+          status: 'Online',
+          bays: matchingStation.bays.map(bay => ({ ...bay, status: 'available' }))
+        };
+        setStations(stations.map(s => s.id === matchingStation.id ? updatedStation : s));
+      }
+    }
+  };
+
   const value = {
     users, addUser, deleteUser, updateUser,
-    stations, addStation, deleteStation, updateStationStatus,
+    stations, addStation, deleteStation, updateStationStatus, updateBayStatus,
     reservations, reserveStation, updateReservation,
     payments, addPayment, releaseHold,
     currentUser, login, logout,
     isLocationEnabled, toggleLocation,
     announcements, addAnnouncement, deleteAnnouncement, toggleAnnouncementStatus,
-    addVehicle, updateVehicle, deleteVehicle
+    addVehicle, updateVehicle, deleteVehicle,
+    feedbacks, addFeedback,
+    maintenanceTasks, assignMaintenance, completeMaintenance
   };
 
   return <DataContext.Provider value={value}>{children}</DataContext.Provider>;
