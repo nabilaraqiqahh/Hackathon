@@ -12,7 +12,7 @@ export const DataProvider = ({ children }) => {
   const [currentUser, setCurrentUser] = useState(null);
   const [isLocationEnabled, setIsLocationEnabled] = useState(false);
 
-  const API_BASE = 'http://localhost:8000/backend/api';
+  const API_BASE = 'http://localhost/hackathon/backend/api';
 
   // Fetch all initial data
   const fetchAllData = async () => {
