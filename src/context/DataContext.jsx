@@ -141,11 +141,8 @@ export const DataProvider = ({ children }) => {
     const user = users.find(u => u.email.toLowerCase() === email.toLowerCase());
     if (user) {
       setCurrentUser(user);
-<<<<<<< HEAD
-      localStorage.setItem('currentUser', JSON.stringify(user));
-=======
       localStorage.setItem('voltpark_user', JSON.stringify(user));
->>>>>>> origin/member-4
+      localStorage.setItem('currentUser', JSON.stringify(user));
       return true;
     }
     return false;
@@ -153,11 +150,8 @@ export const DataProvider = ({ children }) => {
 
   const logout = () => {
     setCurrentUser(null);
-<<<<<<< HEAD
-    localStorage.removeItem('currentUser');
-=======
     localStorage.removeItem('voltpark_user');
->>>>>>> origin/member-4
+    localStorage.removeItem('currentUser');
   };
 
   const toggleLocation = () => setIsLocationEnabled(!isLocationEnabled);
