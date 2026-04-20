@@ -1,9 +1,11 @@
 import React from 'react';
 import { useData } from '../context/DataContext';
 import { Users, Zap, DollarSign, BatteryCharging, AlertTriangle } from 'lucide-react';
+import AnnouncementDisplay from '../components/AnnouncementDisplay';
+import AnnouncementManager from '../components/AnnouncementManager';
 
 const DashboardOverview = () => {
-  const { users, stations, payments } = useData();
+  const { users, stations, payments, announcements } = useData();
 
   const totalRevenue = payments.reduce((acc, curr) => acc + parseFloat(curr.amount.replace('RM ', '')), 0).toFixed(2);
   const activeStations = stations.filter(s => s.status === 'Online').length;
@@ -13,8 +15,10 @@ const DashboardOverview = () => {
     <div>
       <div className="mb-4">
         <h2>Dashboard Overview</h2>
-        <p style={{ color: 'var(--color-text-muted)' }}>Welcome back, Admin. Here's a summary of the EV network status.</p>
+        <p style={{ color: 'var(--color-text-muted)' }}>Welcome back. Here's a summary of the EV network status.</p>
       </div>
+
+      <AnnouncementDisplay announcements={announcements} />
 
       <div className="kpi-grid">
         <div className="kpi-card">
@@ -54,6 +58,8 @@ const DashboardOverview = () => {
           </div>
         </div>
       </div>
+
+      <AnnouncementManager />
 
       <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: '24px' }}>
         <div className="card">

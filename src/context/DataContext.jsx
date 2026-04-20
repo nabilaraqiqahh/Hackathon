@@ -64,6 +64,24 @@ export const DataProvider = ({ children }) => {
 
   const [currentUser, setCurrentUser] = useState(null);
   const [isLocationEnabled, setIsLocationEnabled] = useState(false);
+  const [announcements, setAnnouncements] = useState([
+    { 
+      id: 'ANN-001', 
+      title: 'Maintenance Alert', 
+      message: 'Charging stations in Alor Gajah will be offline for maintenance on April 22nd.', 
+      isActive: true, 
+      authorName: 'Admin',
+      createdAt: { toDate: () => new Date('2026-04-18') }
+    },
+    { 
+      id: 'ANN-002', 
+      title: 'New Fast DC Available', 
+      message: 'A new high-speed DC charger is now operational at Melaka Tengah Station!', 
+      isActive: true, 
+      authorName: 'System',
+      createdAt: { toDate: () => new Date('2026-04-19') }
+    }
+  ]);
 
   // Auth Helpers
   const login = (email) => {
@@ -90,13 +108,34 @@ export const DataProvider = ({ children }) => {
     setStations(stations.map(s => s.id === id ? { ...s, status } : s));
   };
 
+  const addAnnouncement = (title, message, authorId, authorName) => {
+    const newAnn = {
+      id: `ANN-${Date.now()}`,
+      title,
+      message,
+      isActive: true,
+      authorName,
+      createdAt: { toDate: () => new Date() }
+    };
+    setAnnouncements([newAnn, ...announcements]);
+  };
+
+  const deleteAnnouncement = (id) => {
+    setAnnouncements(announcements.filter(a => a.id !== id));
+  };
+
+  const toggleAnnouncementStatus = (id, isActive) => {
+    setAnnouncements(announcements.map(a => a.id === id ? { ...a, isActive } : a));
+  };
+
   const value = {
     users, addUser, deleteUser, updateUser,
     stations, addStation, deleteStation, updateStationStatus,
     reservations,
     payments,
     currentUser, login, logout,
-    isLocationEnabled, toggleLocation
+    isLocationEnabled, toggleLocation,
+    announcements, addAnnouncement, deleteAnnouncement, toggleAnnouncementStatus
   };
 
   return <DataContext.Provider value={value}>{children}</DataContext.Provider>;

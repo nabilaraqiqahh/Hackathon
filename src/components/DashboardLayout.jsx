@@ -3,14 +3,18 @@ import { Bell, AlertCircle } from 'lucide-react';
 import { useLocation } from 'react-router-dom';
 import { useData } from '../context/DataContext';
 import Sidebar from './Sidebar';
+import AnnouncementDisplay from './AnnouncementDisplay';
 
 export const Header = () => {
   const location = useLocation();
-  const { stations } = useData();
+  // Notifications logic from member 2 (Zul)
+  const { stations, announcements } = useData();
   const [showDropdown, setShowDropdown] = useState(false);
 
-  // Notifications logic from member 2
   const maintenanceStations = stations?.filter(s => s.status === 'Maintenance') || [];
+  const activeAnnouncements = announcements?.filter(a => a.isActive) || [];
+  
+  const totalNotifications = maintenanceStations.length + activeAnnouncements.length;
 
   const getPageTitle = (path) => {
     const titles = {
@@ -36,7 +40,7 @@ export const Header = () => {
           onClick={() => setShowDropdown(!showDropdown)}
         >
           <Bell size={24} />
-          {maintenanceStations.length > 0 && (
+          {totalNotifications > 0 && (
             <div style={{
               position: 'absolute', top: '-4px', right: '-4px', 
               background: 'var(--color-danger)', color: 'white', fontSize: '10px', 
@@ -44,7 +48,7 @@ export const Header = () => {
               display: 'flex', alignItems: 'center', justifyContent: 'center',
               fontWeight: 'bold', border: '2px solid white'
             }}>
-              {maintenanceStations.length}
+              {totalNotifications}
             </div>
           )}
         </button>
@@ -59,23 +63,36 @@ export const Header = () => {
             <div style={{ padding: '16px', borderBottom: '1px solid #eee', fontWeight: 600, background: '#fcfcfc', color: 'var(--color-text-main)' }}>
               Live Network Alerts
             </div>
-            <div style={{ maxHeight: '350px', overflowY: 'auto' }}>
-              {maintenanceStations.length === 0 ? (
+            <div style={{ maxHeight: '450px', overflowY: 'auto' }}>
+              {totalNotifications === 0 ? (
                 <div style={{ padding: '24px 16px', textAlign: 'center', color: '#888', fontSize: '0.85rem' }}>
-                  No active issues reported.
+                  No active notifications.
                 </div>
               ) : (
-                maintenanceStations.map(stn => (
-                  <div key={stn.id} style={{ padding: '14px 16px', borderBottom: '1px solid #eee', display: 'flex', gap: '12px', alignItems: 'flex-start' }}>
-                    <div style={{ padding: '6px', background: 'rgba(211, 47, 47, 0.1)', borderRadius: '8px', color: 'var(--color-danger)' }}>
-                      <AlertCircle size={16} />
+                <>
+                  {activeAnnouncements.map(ann => (
+                    <div key={ann.id} style={{ padding: '14px 16px', borderBottom: '1px solid #eee', display: 'flex', gap: '12px', alignItems: 'flex-start', background: 'rgba(211, 47, 47, 0.03)' }}>
+                      <div style={{ padding: '6px', background: 'rgba(211, 47, 47, 0.1)', borderRadius: '8px', color: 'var(--color-danger)' }}>
+                        <Bell size={16} />
+                      </div>
+                      <div>
+                        <div style={{ fontWeight: 600, fontSize: '0.85rem', color: 'var(--color-danger)' }}>{ann.title}</div>
+                        <div style={{ fontSize: '0.75rem', color: '#666', marginTop: '2px' }}>{ann.message}</div>
+                      </div>
                     </div>
-                    <div>
-                      <div style={{ fontWeight: 600, fontSize: '0.85rem' }}>{stn.name}</div>
-                      <div style={{ fontSize: '0.75rem', color: '#666', marginTop: '2px' }}>Station status changed to Maintenance. Requires inspection.</div>
+                  ))}
+                  {maintenanceStations.map(stn => (
+                    <div key={stn.id} style={{ padding: '14px 16px', borderBottom: '1px solid #eee', display: 'flex', gap: '12px', alignItems: 'flex-start' }}>
+                      <div style={{ padding: '6px', background: 'rgba(51, 65, 85, 0.1)', borderRadius: '8px', color: 'var(--color-primary)' }}>
+                        <AlertCircle size={16} />
+                      </div>
+                      <div>
+                        <div style={{ fontWeight: 600, fontSize: '0.85rem' }}>{stn.name}</div>
+                        <div style={{ fontSize: '0.75rem', color: '#666', marginTop: '2px' }}>Station status changed to Maintenance. Requires inspection.</div>
+                      </div>
                     </div>
-                  </div>
-                ))
+                  ))}
+                </>
               )}
             </div>
           </div>
