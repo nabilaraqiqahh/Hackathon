@@ -57,13 +57,13 @@ const UserManagement = () => {
                 <th>Email</th>
                 <th>User Type</th>
                 <th>Joined Date</th>
-                <th className="text-right">Actions</th>
+                <th className="text-center" style={{ textAlign: 'center' }}>Actions</th>
               </tr>
             </thead>
             <tbody>
-              {users.map(user => (
+              {users.map((user, index) => (
                 <tr key={user.id}>
-                  <td>{user.id}</td>
+                  <td>{index + 1}</td>
                   <td style={{ fontWeight: 600 }}>{user.name}</td>
                   <td>{user.email}</td>
                   <td>
@@ -72,7 +72,7 @@ const UserManagement = () => {
                     </span>
                   </td>
                   <td>{user.joined}</td>
-                  <td className="text-right">
+                  <td className="text-center" style={{ textAlign: 'center' }}>
                     <button 
                       style={{ background: 'transparent', color: 'var(--color-text-muted)', marginRight: '12px', cursor: 'pointer', border: 'none' }}
                       onClick={() => {

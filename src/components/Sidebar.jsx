@@ -1,12 +1,25 @@
-import React from 'react';
-import { LayoutDashboard, Map, Zap, Calendar, CreditCard, User, LogOut } from 'lucide-react';
-import { NavLink } from 'react-router-dom';
+import React, { useState, useEffect, useRef } from 'react';
+import { LayoutDashboard, Map, Zap, Calendar, CreditCard, User, LogOut, ChevronUp, UserCircle, Car, MessageSquare } from 'lucide-react';
+import { NavLink, useNavigate } from 'react-router-dom';
 
 import { useData } from '../context/DataContext';
 
 const Sidebar = () => {
   const { currentUser, logout } = useData();
   const isAdmin = currentUser?.type === 'Admin';
+  const navigate = useNavigate();
+  const [isMenuOpen, setIsMenuOpen] = useState(false);
+  const menuRef = useRef(null);
+
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (menuRef.current && !menuRef.current.contains(event.target)) {
+        setIsMenuOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
 
   const adminLinks = [
     { title: 'Overview', icon: <LayoutDashboard size={20} />, path: '/dashboard' },
@@ -24,6 +37,11 @@ const Sidebar = () => {
 
   const links = isAdmin ? adminLinks : driverLinks;
 
+  const handleMenuNavigate = (path) => {
+    setIsMenuOpen(false);
+    navigate(path);
+  };
+
   return (
     <aside className="sidebar">
       <div className="sidebar-brand" style={{ padding: '24px 0', display: 'flex', justifyContent: 'center' }}>
@@ -39,29 +57,88 @@ const Sidebar = () => {
         ))}
       </nav>
 
-      <div className="sidebar-profile">
-        <button onClick={logout} style={{ 
-          background: 'none', 
-          border: 'none', 
-          color: 'var(--color-danger)', 
-          display: 'flex', 
-          alignItems: 'center', 
-          gap: '8px', 
-          padding: '8px', 
-          width: '100%',
-          cursor: 'pointer',
-          marginBottom: '10px',
-          fontWeight: 600
-        }}>
-          <LogOut size={18} />
-          Sign Out
-        </button>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-          <div className="avatar">{currentUser?.name?.charAt(0) || 'U'}</div>
-          <div className="profile-info">
-            <h4>{currentUser?.name || 'Guest'}</h4>
-            <p>{currentUser?.type || 'User'}</p>
+      <div className="sidebar-profile" style={{ position: 'relative', marginTop: 'auto', background: '#EFE8DA', padding: '16px', borderRadius: 'var(--radius-md)' }} ref={menuRef}>
+        {isMenuOpen && (
+          <div style={{
+            position: 'absolute',
+            bottom: '100%',
+            left: '0',
+            width: '100%',
+            marginBottom: '12px',
+            background: 'var(--color-surface)',
+            borderRadius: '12px',
+            boxShadow: '0 -4px 20px rgba(0,0,0,0.15)',
+            border: '1px solid rgba(0,0,0,0.05)',
+            overflow: 'hidden',
+            zIndex: 100
+          }}>
+            <div style={{ padding: '16px 16px 8px', fontSize: '0.75rem', fontWeight: 700, color: 'var(--color-text-muted)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Account</div>
+            <div 
+              style={{ padding: '12px 16px', display: 'flex', alignItems: 'center', gap: '12px', cursor: 'pointer', transition: 'background 0.2s', fontSize: '0.9rem', fontWeight: 500 }}
+              onClick={() => handleMenuNavigate('/profile')}
+              onMouseOver={e => e.currentTarget.style.background = 'rgba(0,0,0,0.02)'}
+              onMouseOut={e => e.currentTarget.style.background = 'transparent'}
+            >
+              <UserCircle size={18} color="var(--color-primary)" />
+              Personal Information
+            </div>
+            <div 
+              style={{ padding: '12px 16px', display: 'flex', alignItems: 'center', gap: '12px', cursor: 'pointer', transition: 'background 0.2s', fontSize: '0.9rem', fontWeight: 500 }}
+              onClick={() => handleMenuNavigate('/vehicles')}
+              onMouseOver={e => e.currentTarget.style.background = 'rgba(0,0,0,0.02)'}
+              onMouseOut={e => e.currentTarget.style.background = 'transparent'}
+            >
+              <Car size={18} color="var(--color-primary)" />
+              My Vehicles
+            </div>
+
+            <div style={{ borderTop: '1px solid rgba(0,0,0,0.05)', margin: '8px 0' }}></div>
+            
+            <div style={{ padding: '8px 16px', fontSize: '0.75rem', fontWeight: 700, color: 'var(--color-text-muted)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Support</div>
+            <div 
+              style={{ padding: '12px 16px', display: 'flex', alignItems: 'center', gap: '12px', cursor: 'pointer', transition: 'background 0.2s', fontSize: '0.9rem', fontWeight: 500 }}
+              onClick={() => handleMenuNavigate('/feedback')}
+              onMouseOver={e => e.currentTarget.style.background = 'rgba(0,0,0,0.02)'}
+              onMouseOut={e => e.currentTarget.style.background = 'transparent'}
+            >
+              <MessageSquare size={18} color="var(--color-primary)" />
+              Send Feedback
+            </div>
           </div>
+        )}
+
+        <div style={{ flexDirection: 'column', alignItems: 'stretch', gap: '16px', display: 'flex' }}>
+          <div 
+            style={{ display: 'flex', alignItems: 'center', gap: '12px', padding: '8px', borderRadius: '8px', cursor: 'pointer', transition: 'background-color 0.2s', background: isMenuOpen ? 'rgba(0,0,0,0.05)' : 'transparent', margin: '-8px' }}
+            onClick={() => setIsMenuOpen(!isMenuOpen)}
+          >
+            <div className="avatar">{currentUser?.name?.charAt(0) || 'U'}</div>
+            <div className="profile-info" style={{ flex: 1, minWidth: 0 }}>
+              <h4 style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{currentUser?.name || 'Guest'}</h4>
+              <p>{currentUser?.type || 'User'}</p>
+            </div>
+            <ChevronUp size={20} style={{ color: 'var(--color-text-muted)', transform: isMenuOpen ? 'rotate(180deg)' : 'none', transition: 'transform 0.3s' }} />
+          </div>
+          
+          <button onClick={logout} style={{ 
+            background: 'rgba(211, 47, 47, 0.1)', 
+            border: 'none', 
+            borderRadius: '8px',
+            color: 'var(--color-danger)', 
+            display: 'flex', 
+            alignItems: 'center', 
+            justifyContent: 'center',
+            gap: '8px', 
+            padding: '10px', 
+            width: '100%',
+            cursor: 'pointer',
+            fontWeight: 600,
+            transition: 'all 0.2s',
+            marginTop: '8px'
+          }}>
+            <LogOut size={18} />
+            Sign Out
+          </button>
         </div>
       </div>
     </aside>

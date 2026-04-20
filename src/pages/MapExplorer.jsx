@@ -1,144 +1,794 @@
-import React, { useState, useEffect } from 'react';
-import { MapPin, Info, Navigation, Search } from 'lucide-react';
-import { MapContainer, TileLayer, Marker, Popup } from 'react-leaflet';
+import React, { useState, useEffect, useRef } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { Navigation, Search, X, CreditCard, Building, CheckCircle, ArrowLeft } from 'lucide-react';
+import { MapContainer, TileLayer, Marker, Popup, CircleMarker, useMap } from 'react-leaflet';
 import L from 'leaflet';
+import 'leaflet/dist/leaflet.css';
 import { useData } from '../context/DataContext';
 
-// Fix for default Leaflet marker icons
-import markerIcon2x from 'leaflet/dist/images/marker-icon-2x.png';
-import markerIcon from 'leaflet/dist/images/marker-icon.png';
-import shadowIcon from 'leaflet/dist/images/marker-shadow.png';
+const OCM_API_KEY = "292877f3-6142-4c76-b36b-fb1f0524e86d";
+
+const MELAKA_POLYGON = [
+  [2.505,102.150],[2.510,102.220],[2.480,102.280],[2.450,102.300],
+  [2.430,102.350],[2.420,102.390],[2.400,102.420],[2.380,102.440],
+  [2.350,102.455],[2.300,102.460],[2.260,102.450],[2.230,102.440],
+  [2.200,102.420],[2.160,102.380],[2.130,102.340],[2.110,102.290],
+  [2.100,102.240],[2.105,102.190],[2.120,102.150],[2.150,102.140],
+  [2.200,102.130],[2.280,102.130],[2.350,102.140],[2.420,102.140],
+  [2.470,102.145],[2.505,102.150],
+];
+
+function isInsideMelaka(lat, lng) {
+  let inside = false;
+  for (let i = 0, j = MELAKA_POLYGON.length - 1; i < MELAKA_POLYGON.length; j = i++) {
+    const [yi, xi] = MELAKA_POLYGON[i];
+    const [yj, xj] = MELAKA_POLYGON[j];
+    const intersect = yi > lat !== yj > lat && lng < ((xj - xi) * (lat - yi)) / (yj - yi) + xi;
+    if (intersect) inside = !inside;
+  }
+  return inside;
+}
+
+const MELAKA_SW       = [2.09,  102.12];
+const MELAKA_NE       = [2.515, 102.47];
+const MELAKA_BOUNDS   = L.latLngBounds(MELAKA_SW, MELAKA_NE);
+const MELAKA_CENTER   = [2.2900, 102.3000];
+const MELAKA_MIN_ZOOM = 11;
+
+function isInMelakaRect(lat, lng) {
+  return lat >= MELAKA_SW[0] && lat <= MELAKA_NE[0] && lng >= MELAKA_SW[1] && lng <= MELAKA_NE[1];
+}
+function isStrictlyInMelaka(lat, lng) {
+  return isInMelakaRect(lat, lng) && isInsideMelaka(lat, lng);
+}
+
+const DISTRICTS = {
+  "Melaka Tengah": { bounds: L.latLngBounds([2.09, 102.17], [2.30, 102.40]) },
+  "Alor Gajah":   { bounds: L.latLngBounds([2.28, 102.12], [2.515, 102.34]) },
+  "Jasin":        { bounds: L.latLngBounds([2.17, 102.33], [2.42, 102.47]) },
+};
+
+function classifyDistrict(lat, lng, title = "", address = "", town = "") {
+  const text = `${title} ${address} ${town}`.toLowerCase();
+  if (text.includes("melaka tengah") || text.includes("bandar hilir") || text.includes("ayer keroh") || text.includes("bukit baru")) return "Melaka Tengah";
+  if (text.includes("alor gajah") || text.includes("masjid tanah") || text.includes("simpang ampat")) return "Alor Gajah";
+  if (text.includes("jasin") || text.includes("merlimau") || text.includes("selandar")) return "Jasin";
+  if (lng >= 102.33 && lat >= 2.17 && lat <= 2.42) return "Jasin";
+  if (lat >= 2.28 && lng <= 102.34) return "Alor Gajah";
+  if (lat <= 2.30 && lng >= 102.17 && lng <= 102.40) return "Melaka Tengah";
+  return "Other";
+}
 
 delete L.Icon.Default.prototype._getIconUrl;
 L.Icon.Default.mergeOptions({
-  iconRetinaUrl: markerIcon2x,
-  iconUrl: markerIcon,
-  shadowUrl: shadowIcon,
+  iconRetinaUrl: "https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon-2x.png",
+  iconUrl:       "https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon.png",
+  shadowUrl:     "https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png",
 });
 
-const StatusBadge = ({ status }) => {
-  const colors = {
-    'Online': '#2E7D32',
-    'Maintenance': '#D32F2F',
-    'Full': '#F57C00'
+
+function createIcon(color) {
+  return L.divIcon({
+    className: "",
+    html: `<div style="width:30px;height:30px;border-radius:50% 50% 50% 0;
+      background:${color};border:3px solid #fff;
+      box-shadow:0 2px 8px rgba(0,0,0,0.25);
+      transform:rotate(-45deg);position:relative;">
+      <span style="position:absolute;inset:0;display:flex;align-items:center;
+        justify-content:center;transform:rotate(45deg);font-size:12px;color:#fff;">⚡</span>
+    </div>`,
+    iconSize: [30, 30], iconAnchor: [15, 30], popupAnchor: [0, -34],
+  });
+}
+
+const STATUS_COLOR = { available: "#22c55e", maintenance: "#f59e0b", full: "#ef4444", unknown: "#94a3b8" };
+const STATUS_LABEL = { available: "Available", maintenance: "Maintenance", full: "Full", unknown: "Unknown" };
+
+function deriveStatus(poi) {
+  const id = poi.StatusType?.ID;
+  if (id === 50)  return "available";
+  if (id === 75)  return "maintenance";
+  if (id === 210) return "full";
+  return "unknown";
+}
+
+const getPortInfo = (station, portNum) => {
+  if (!station) return null;
+
+  const extractRate = (costString, isDC) => {
+    if (!costString) return isDC ? 'RM 1.20/kWh' : 'RM 0.90/kWh';
+    
+    const typeStr = isDC ? 'DC' : 'AC';
+    
+    // Format 1: Type before RM (e.g. "DC @ RM1.35/kWh")
+    const reg1 = new RegExp(`${typeStr}.*?RM\\s*(\\d+\\.\\d+)`, 'i');
+    const match1 = costString.match(reg1);
+    if (match1) return `RM ${parseFloat(match1[1]).toFixed(2)}/kWh`;
+
+    // Format 2: RM before Type (e.g. "RM 1.20/kWh (DC)")
+    const reg2 = new RegExp(`RM\\s*(\\d+\\.\\d+)[^,|]*?${typeStr}`, 'i');
+    const match2 = costString.match(reg2);
+    if (match2) return `RM ${parseFloat(match2[1]).toFixed(2)}/kWh`;
+
+    // Fallback: grab the first RM value found
+    const anyMatch = costString.match(/RM\s*(\d+\.\d+)/i);
+    if (anyMatch) return `RM ${parseFloat(anyMatch[1]).toFixed(2)}/kWh`;
+
+    // If string is short (e.g. "Free"), return it directly
+    if (costString.length < 25) return costString;
+
+    return isDC ? 'RM 1.20/kWh' : 'RM 0.90/kWh';
   };
+
+  if (station.connections > 1) {
+    if (portNum % 2 === 1) {
+      return { type: 'DC Fast', rate: extractRate(station.usageCost, true), color: '#3b82f6' }; // Blue
+    } else {
+      return { type: 'AC Standard', rate: extractRate(station.usageCost, false), color: '#22c55e' }; // Green
+    }
+  }
+  
+  const isDC = station.type.includes('DC');
+  return {
+    type: station.type,
+    rate: station.usageCost || (isDC ? 'RM 1.20/kWh' : 'RM 0.90/kWh'),
+    color: isDC ? '#3b82f6' : '#22c55e'
+  };
+};
+
+const StatusBadge = ({ status }) => {
+  const colors = { available: '#22c55e', maintenance: '#f59e0b', full: '#ef4444', unknown: '#94a3b8' };
+  const labels = { available: 'Available', maintenance: 'Maintenance', full: 'Full', unknown: 'Unknown' };
+  const color = colors[status] || colors.unknown;
   return (
-    <span style={{ 
-      padding: '4px 10px', 
-      borderRadius: '20px', 
-      fontSize: '0.75rem', 
-      fontWeight: 600, 
-      background: `${colors[status]}22`, 
-      color: colors[status],
-      display: 'inline-flex',
-      alignItems: 'center',
-      gap: '4px'
+    <span style={{
+      padding: '4px 10px', borderRadius: '20px', fontSize: '0.75rem', fontWeight: 600,
+      background: `${color}22`, color, display: 'inline-flex', alignItems: 'center', gap: '4px',
     }}>
-      <div style={{ width: 6, height: 6, borderRadius: '50%', background: colors[status] }}></div>
-      {status}
+      <div style={{ width: 6, height: 6, borderRadius: '50%', background: color }} />
+      {labels[status] || status}
     </span>
   );
 };
 
+const FilterIcon = ({ active }) => (
+  <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', width: 18 }}>
+    <div style={{ height: 2, borderRadius: 2, background: active ? '#fff' : 'currentColor', width: '100%' }} />
+    <div style={{ height: 2, borderRadius: 2, background: active ? '#fff' : 'currentColor', width: '75%' }} />
+    <div style={{ height: 2, borderRadius: 2, background: active ? '#fff' : 'currentColor', width: '50%' }} />
+  </div>
+);
+
+function MapController({ district, selectedStation }) {
+  const map = useMap();
+  useEffect(() => {
+    map.fitBounds(MELAKA_BOUNDS, { padding: [20, 20] });
+    setTimeout(() => map.setMinZoom(MELAKA_MIN_ZOOM), 600);
+  }, [map]);
+  useEffect(() => {
+    if (district === "All Districts") map.flyToBounds(MELAKA_BOUNDS, { padding: [20, 20], duration: 1.2 });
+    else if (DISTRICTS[district]) map.flyToBounds(DISTRICTS[district].bounds, { padding: [50, 50], duration: 1.2 });
+  }, [district, map]);
+  useEffect(() => {
+    if (selectedStation?.lat && selectedStation?.lng)
+      map.flyTo([selectedStation.lat, selectedStation.lng], 16, { duration: 1 });
+  }, [selectedStation, map]);
+  return null;
+}
+
+function calculateDistance(lat1, lon1, lat2, lon2) {
+  const R = 6371;
+  const dLat = (lat2 - lat1) * Math.PI / 180;
+  const dLon = (lon2 - lon1) * Math.PI / 180;
+  const a = Math.sin(dLat/2)**2 + Math.cos(lat1*Math.PI/180)*Math.cos(lat2*Math.PI/180)*Math.sin(dLon/2)**2;
+  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+}
+
 const MapExplorer = () => {
-  const { stations, isLocationEnabled, toggleLocation } = useData();
-  const [district, setDistrict] = useState('All Districts');
+  const { isLocationEnabled, toggleLocation, currentUser, reserveStation, reservations } = useData();
+  const navigate = useNavigate();
+
+  const [stations, setStations]               = useState([]);
+  const [loading, setLoading]                 = useState(true);
+  const [error, setError]                     = useState(null);
+  const [lastUpdated, setLastUpdated]         = useState(null);
+  const intervalRef                           = useRef(null);
+  const filterRef                             = useRef(null);
+
   const [selectedStation, setSelectedStation] = useState(null);
-  const [filteredStations, setFilteredStations] = useState(stations);
+  const [selectedPort, setSelectedPort] = useState(1);
+  const [userLocation, setUserLocation]       = useState(null);
+
+  const [searchQuery, setSearchQuery]         = useState("");
+  const [district, setDistrict]               = useState("All Districts");
+  const [availability, setAvailability]       = useState("All Status");
+  const [chargerType, setChargerType]         = useState("All Types");
+  const [filtersOpen, setFiltersOpen]         = useState(false);
+
+  // Payment states
+  const [showPaymentModal, setShowPaymentModal] = useState(false);
+  const [paymentMethod, setPaymentMethod] = useState('card');
+  const [targetAmount, setTargetAmount] = useState(10);
+  const [isProcessing, setIsProcessing] = useState(false);
+  const [isSuccess, setIsSuccess] = useState(false);
+
+  const activeFilterCount = [
+    district !== "All Districts",
+    availability !== "All Status",
+    chargerType !== "All Types",
+  ].filter(Boolean).length;
+
+  const currentPortInfo = getPortInfo(selectedStation, selectedPort);
+
+  const handleSelectStation = (stn) => {
+    setSelectedStation(stn);
+    // Find first available port so we don't default to an occupied one
+    let firstAvailable = 1;
+    for (let i = 1; i <= stn.connections; i++) {
+      const isOccupied = reservations?.some(r => 
+        r.station === stn.name && 
+        (r.status === 'Confirmed' || r.status === 'Active') && 
+        r.connector.includes(`Port ${i}`)
+      );
+      if (!isOccupied) {
+        firstAvailable = i;
+        break;
+      }
+    }
+    setSelectedPort(firstAvailable);
+  };
 
   useEffect(() => {
-    let result = stations;
-    if (district !== 'All Districts') {
-      result = result.filter(s => s.district === district);
+    function handleClickOutside(e) {
+      if (filterRef.current && !filterRef.current.contains(e.target)) {
+        setFiltersOpen(false);
+      }
     }
-    setFilteredStations(result);
-  }, [district, stations]);
+    if (filtersOpen) document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [filtersOpen]);
 
-  const mapCenter = [2.1896, 102.2501]; // Melaka City coordinates
+  async function fetchStations() {
+    setLoading(true);
+    try {
+      const params = new URLSearchParams({
+        key: OCM_API_KEY,
+        latitude: MELAKA_CENTER[0], longitude: MELAKA_CENTER[1],
+        distance: 10, distanceunit: "KM",
+        maxresults: 100, compact: true, verbose: false,
+        output: "json", countrycode: "MY",
+      });
+      const res  = await fetch(`https://api.openchargemap.io/v3/poi/?${params}`);
+      if (!res.ok) throw new Error(`API error ${res.status}`);
+      const data = await res.json();
 
-  const getPos = (dist) => {
-    if (dist === 'Jasin') return [2.3102, 102.4312];
-    if (dist === 'Alor Gajah') return [2.3846, 102.2132];
-    return [2.1896, 102.2501];
+      const mapped = data.map((poi) => {
+        const title   = poi.AddressInfo?.Title || "";
+        const cost    = poi.UsageCost || "";
+        
+        const conns = poi.Connections || [];
+        const types = [...new Set(conns.map((c) => {
+          const t = c.ConnectionType?.Title || "";
+          if (t.includes("CHAdeMO") || t.includes("CCS") || t.toLowerCase().includes("dc")) return "DC Fast";
+          if (t.toLowerCase().includes("fast")) return "DC Fast";
+          return "AC Standard";
+        }))];
+        
+        let baseType = types[0] || "AC Standard";
+        
+        // Fallback: If OCM connector data is generic but title or cost explicitly says DC
+        if (title.toLowerCase().includes("dc") || cost.toLowerCase().includes("dc")) {
+          if (!baseType.includes("DC")) {
+            baseType = "DC Fast";
+          }
+        } else if (title.toLowerCase().includes("ac") || cost.toLowerCase().includes("ac")) {
+          if (!baseType.includes("AC") && !baseType.includes("DC")) {
+            baseType = "AC Standard";
+          }
+        }
+
+        const lat     = poi.AddressInfo?.Latitude;
+        const lng     = poi.AddressInfo?.Longitude;
+        const address = poi.AddressInfo?.AddressLine1 || "";
+        const town    = poi.AddressInfo?.Town || "";
+        
+        return {
+          id: poi.ID, name: title || "Unknown Station",
+          address, town,
+          district: classifyDistrict(lat, lng, title, address, town),
+          lat, lng,
+          status:      deriveStatus(poi),
+          type:        baseType,
+          usageCost:   poi.UsageCost || null,
+          operator:    poi.OperatorInfo?.Title || "Unknown Operator",
+          connections: conns.length || 1,
+        };
+      }).filter((s) => s.lat && s.lng && isStrictlyInMelaka(s.lat, s.lng));
+
+      setStations(mapped);
+      setLastUpdated(new Date().toLocaleTimeString());
+      setError(null);
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  useEffect(() => {
+    fetchStations();
+    intervalRef.current = setInterval(fetchStations, 60000);
+    return () => clearInterval(intervalRef.current);
+  }, []);
+
+  useEffect(() => {
+    let watchId;
+    if (isLocationEnabled && 'geolocation' in navigator) {
+      watchId = navigator.geolocation.watchPosition(
+        (pos) => setUserLocation([pos.coords.latitude, pos.coords.longitude]),
+        (err) => console.error("Geolocation error:", err),
+        { enableHighAccuracy: true, maximumAge: 10000, timeout: 5000 }
+      );
+    } else {
+      setUserLocation(null);
+    }
+    return () => { if (watchId) navigator.geolocation.clearWatch(watchId); };
+  }, [isLocationEnabled]);
+
+  function handleDistrictChange(val) {
+    setDistrict(val);
+    setSelectedStation(null);
+  }
+
+  function resetFilters() {
+    setDistrict("All Districts");
+    setAvailability("All Status");
+    setChargerType("All Types");
+  }
+
+  const handlePayNow = () => {
+    setIsProcessing(true);
+    setTimeout(() => {
+      const holdAmount = targetAmount === 'Full' ? 150 : targetAmount;
+      
+      reserveStation({
+        user: currentUser.name,
+        station: selectedStation.name,
+        date: new Date().toISOString().split('T')[0],
+        time: new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false }),
+        targetAmount: holdAmount,
+        paymentMethod: paymentMethod === 'card' ? 'Visa •••• 4242' : 'FPX Maybank2u',
+        connector: selectedStation.connections > 1 ? `Port ${selectedPort} (${currentPortInfo.type})` : currentPortInfo.type,
+        power: selectedStation.name.match(/(\d+)\s*kW/i) ? `${selectedStation.name.match(/(\d+)\s*kW/i)[1]}kW` : (currentPortInfo.type.includes('DC') ? '120kW' : '11kW'),
+        rate: currentPortInfo.rate,
+        status: 'Confirmed'
+      });
+      
+      setIsProcessing(false);
+      setIsSuccess(true);
+      
+      setTimeout(() => {
+        setIsSuccess(false);
+        setShowPaymentModal(false);
+        navigate('/reservations');
+      }, 2000);
+    }, 1500);
+  };
+
+  const filtered = stations.filter((s) => {
+    if (searchQuery) {
+      const q = searchQuery.toLowerCase();
+      const match = s.name.toLowerCase().includes(q) ||
+                    s.address.toLowerCase().includes(q) ||
+                    s.town.toLowerCase().includes(q) ||
+                    s.operator.toLowerCase().includes(q);
+      if (!match) return false;
+    }
+    if (district !== "All Districts" && s.district !== district) return false;
+    if (availability === "Available"   && s.status !== "available")   return false;
+    if (availability === "Maintenance" && s.status !== "maintenance") return false;
+    if (availability === "Full"        && s.status !== "full")        return false;
+    if (chargerType  !== "All Types"   && s.type   !== chargerType)   return false;
+    return true;
+  });
+
+  const sortedStations = [...filtered].map((s) => ({
+    ...s,
+    distance: userLocation ? calculateDistance(userLocation[0], userLocation[1], s.lat, s.lng) : null,
+  })).sort((a, b) => {
+    if (a.distance === null || b.distance === null) return 0;
+    return a.distance - b.distance;
+  });
+
+  const selectStyle = {
+    width: '100%', padding: '7px 10px', borderRadius: 8,
+    border: '1px solid rgba(0,0,0,0.12)', fontSize: '0.85rem',
+    background: '#fafafa', outline: 'none',
+  };
+  const labelStyle = {
+    display: 'block', fontSize: '0.7rem', fontWeight: 700,
+    textTransform: 'uppercase', letterSpacing: '0.5px',
+    color: 'var(--color-text-muted)', marginBottom: 4,
   };
 
   return (
-    <div style={{ height: 'calc(100vh - 120px)', display: 'flex', flexDirection: 'column' }}>
-      <div className="mb-3" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-        <div>
-          <h2>Map Explorer</h2>
-          <p style={{ color: 'var(--color-text-muted)', margin: 0 }}>Interactive view of the Melaka EV Charging network.</p>
+    <div style={{ height: 'calc(100vh - 120px)', display: 'flex', flexDirection: 'column', position: 'relative' }}>
+
+      {showPaymentModal && (
+        <div className="modal-overlay" style={{ zIndex: 9999 }}>
+          <div className="card" style={{ maxWidth: '440px', width: '100%', margin: '20px', overflow: 'hidden' }}>
+            {isSuccess ? (
+              <div style={{ padding: '40px', textAlign: 'center' }}>
+                <div style={{ display: 'inline-flex', background: 'rgba(45, 138, 39, 0.1)', color: 'var(--color-success)', padding: '16px', borderRadius: '50%', marginBottom: '20px' }}>
+                  <CheckCircle size={56} />
+                </div>
+                <h3 style={{ marginBottom: '8px' }}>Payment Successful!</h3>
+                <p style={{ color: 'var(--color-text-muted)', margin: 0 }}>Your reservation at {selectedStation?.name} is confirmed.</p>
+              </div>
+            ) : (
+              <>
+                <div className="card-header" style={{ padding: '20px 24px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <h3 style={{ margin: 0, fontSize: '1.2rem' }}>Checkout</h3>
+                  <button onClick={() => !isProcessing && setShowPaymentModal(false)} style={{ background: 'transparent', color: '#999', border: 'none', cursor: 'pointer' }}>
+                    <X size={24} />
+                  </button>
+                </div>
+                <div className="card-body" style={{ padding: '24px' }}>
+                  <div style={{ background: 'rgba(128,0,0,0.03)', padding: '16px', borderRadius: '12px', marginBottom: '24px', border: '1px solid rgba(128,0,0,0.1)' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '12px' }}>
+                      <span style={{ color: 'var(--color-text-muted)' }}>Station</span>
+                      <span style={{ fontWeight: 600 }}>{selectedStation?.name}</span>
+                    </div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '12px' }}>
+                      <span style={{ color: 'var(--color-text-muted)' }}>Port / Type</span>
+                      <span style={{ fontWeight: 600 }}>
+                        {selectedStation?.connections > 1 ? `Port ${selectedPort} (${currentPortInfo?.type})` : currentPortInfo?.type}
+                      </span>
+                    </div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '12px' }}>
+                      <span style={{ color: 'var(--color-text-muted)' }}>Rate</span>
+                      <span style={{ fontWeight: 600 }}>{currentPortInfo?.rate}</span>
+                    </div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '12px' }}>
+                      <span style={{ color: 'var(--color-text-muted)' }}>Hold Amount</span>
+                      <span style={{ fontWeight: 600 }}>RM {targetAmount === 'Full' ? 150 : targetAmount}.00</span>
+                    </div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', borderTop: '1px dashed #ccc', paddingTop: '12px', marginTop: '4px' }}>
+                      <span style={{ color: 'var(--color-text-main)', fontWeight: 600 }}>Pre-Authorization</span>
+                      <span style={{ fontWeight: 700, color: 'var(--color-primary)' }}>RM {targetAmount === 'Full' ? 150 : targetAmount}.00</span>
+                    </div>
+                  </div>
+                  
+                  <h4 style={{ marginBottom: '12px', fontSize: '1rem' }}>Target Amount</h4>
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '8px', marginBottom: '24px' }}>
+                    {[10, 30, 50, 'Full'].map(amt => (
+                      <button
+                        key={amt}
+                        onClick={() => setTargetAmount(amt)}
+                        style={{
+                          padding: '12px 4px',
+                          border: `2px solid ${targetAmount === amt ? 'var(--color-primary)' : '#eee'}`,
+                          borderRadius: '8px',
+                          background: targetAmount === amt ? 'rgba(128,0,0,0.02)' : 'white',
+                          fontWeight: 600,
+                          fontSize: '0.85rem',
+                          color: targetAmount === amt ? 'var(--color-primary)' : 'var(--color-text-main)',
+                          cursor: 'pointer',
+                          transition: 'all 0.2s'
+                        }}
+                      >
+                        {amt === 'Full' ? 'Full Charge' : `RM ${amt}`}
+                      </button>
+                    ))}
+                  </div>
+
+                  <h4 style={{ marginBottom: '16px', fontSize: '1rem' }}>Payment Method</h4>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', marginBottom: '32px' }}>
+                    <label style={{ display: 'flex', alignItems: 'center', gap: '16px', padding: '16px', border: `2px solid ${paymentMethod === 'card' ? 'var(--color-primary)' : '#eee'}`, borderRadius: '12px', cursor: 'pointer', background: paymentMethod === 'card' ? 'rgba(128,0,0,0.02)' : 'white', transition: 'all 0.2s' }}>
+                      <input type="radio" name="payment" checked={paymentMethod === 'card'} onChange={() => setPaymentMethod('card')} style={{ display: 'none' }} disabled={isProcessing} />
+                      <CreditCard size={24} color={paymentMethod === 'card' ? 'var(--color-primary)' : '#888'} />
+                      <div style={{ flex: 1 }}>
+                        <div style={{ fontWeight: 600, color: paymentMethod === 'card' ? 'var(--color-primary)' : 'var(--color-text-main)' }}>Credit / Debit Card</div>
+                        <div style={{ fontSize: '0.8rem', color: 'var(--color-text-muted)' }}>Pay securely with your card</div>
+                      </div>
+                    </label>
+                    <label style={{ display: 'flex', alignItems: 'center', gap: '16px', padding: '16px', border: `2px solid ${paymentMethod === 'fpx' ? 'var(--color-primary)' : '#eee'}`, borderRadius: '12px', cursor: 'pointer', background: paymentMethod === 'fpx' ? 'rgba(128,0,0,0.02)' : 'white', transition: 'all 0.2s' }}>
+                      <input type="radio" name="payment" checked={paymentMethod === 'fpx'} onChange={() => setPaymentMethod('fpx')} style={{ display: 'none' }} disabled={isProcessing} />
+                      <Building size={24} color={paymentMethod === 'fpx' ? 'var(--color-primary)' : '#888'} />
+                      <div style={{ flex: 1 }}>
+                        <div style={{ fontWeight: 600, color: paymentMethod === 'fpx' ? 'var(--color-primary)' : 'var(--color-text-main)' }}>FPX Online Banking</div>
+                        <div style={{ fontSize: '0.8rem', color: 'var(--color-text-muted)' }}>Direct transfer from your bank</div>
+                      </div>
+                    </label>
+                  </div>
+
+                  <button 
+                    className="login-btn" 
+                    style={{ width: '100%', padding: '16px', fontSize: '1.05rem', opacity: isProcessing ? 0.7 : 1, display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '10px' }}
+                    disabled={isProcessing}
+                    onClick={handlePayNow}
+                  >
+                    {isProcessing ? (
+                      <>
+                        <div style={{ width: '20px', height: '20px', border: '3px solid rgba(255,255,255,0.3)', borderTopColor: '#fff', borderRadius: '50%', animation: 'spin 1s linear infinite' }}></div>
+                        Authorizing...
+                      </>
+                    ) : (
+                      `Authorize RM ${targetAmount === 'Full' ? 150 : targetAmount}.00`
+                    )}
+                  </button>
+                </div>
+              </>
+            )}
+          </div>
         </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '20px' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '12px', background: 'white', padding: '8px 16px', borderRadius: '30px', boxShadow: 'var(--shadow-sm)', border: '1px solid rgba(0,0,0,0.05)' }}>
-            <span style={{ fontSize: '0.85rem', fontWeight: 600, color: isLocationEnabled ? 'var(--color-success)' : 'var(--color-text-muted)' }}>
-              Location {isLocationEnabled ? 'ON' : 'OFF'}
-            </span>
-            <button 
-              onClick={toggleLocation}
-              style={{ 
-                width: '44px', 
-                height: '24px', 
-                borderRadius: '12px', 
+      )}
+
+      {/* ── Top bar ── */}
+      <div className="mb-3">
+
+        {/* Row 1: Title + right controls */}
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '12px' }}>
+          <div>
+            <h2 style={{ margin: '0 0 2px 0' }}>Map Explorer</h2>
+            <p style={{ color: 'var(--color-text-muted)', margin: 0 }}>Real-time EV charging stations across Melaka.</p>
+          </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '14px', flexShrink: 0 }}>
+            {Object.entries(STATUS_COLOR).map(([k, v]) => (
+              <div key={k} style={{ display: 'flex', alignItems: 'center', gap: '5px', fontSize: '0.78rem' }}>
+                <div style={{ width: 9, height: 9, borderRadius: '50%', background: v, flexShrink: 0 }} />
+                {STATUS_LABEL[k]}
+              </div>
+            ))}
+            {lastUpdated && (
+              <span style={{ fontSize: '0.75rem', color: 'var(--color-text-muted)' }}>🔄 {lastUpdated}</span>
+            )}
+            {/* Location toggle */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', background: 'white', padding: '6px 12px', borderRadius: '30px', boxShadow: 'var(--shadow-sm)', border: '1px solid rgba(0,0,0,0.05)' }}>
+              <span style={{ fontSize: '0.8rem', fontWeight: 600, color: isLocationEnabled ? 'var(--color-success)' : 'var(--color-text-muted)' }}>
+                Location {isLocationEnabled ? 'ON' : 'OFF'}
+              </span>
+              <button onClick={toggleLocation} style={{
+                width: '40px', height: '22px', borderRadius: '11px',
                 background: isLocationEnabled ? 'var(--color-success)' : '#ccc',
-                position: 'relative',
-                border: 'none',
-                cursor: 'pointer',
-                transition: 'all 0.3s'
+                position: 'relative', border: 'none', cursor: 'pointer', transition: 'all 0.3s', flexShrink: 0,
+              }}>
+                <div style={{
+                  width: '16px', height: '16px', background: 'white', borderRadius: '50%',
+                  position: 'absolute', top: '3px',
+                  left: isLocationEnabled ? '21px' : '3px', transition: 'all 0.3s',
+                }} />
+              </button>
+            </div>
+          </div>
+        </div>
+
+        {/* Row 2: Search bar with inline filter icon at right end */}
+        <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
+          <div style={{ flex: 1, position: 'relative' }} ref={filterRef}>
+
+            {/* Search icon left */}
+            <Search size={15} style={{
+              position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)',
+              color: 'var(--color-text-muted)', pointerEvents: 'none', zIndex: 1,
+            }} />
+
+            {/* Input */}
+            <input
+              type="text"
+              placeholder="Search station, operator, or area…"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              style={{
+                width: '50%', padding: '9px 80px 9px 36px',
+                borderRadius: 10, border: `1px solid ${filtersOpen ? 'var(--color-primary, #7a1212)' : 'rgba(0,0,0,0.12)'}`,
+                fontSize: '0.85rem', background: 'white', outline: 'none',
+                boxShadow: 'var(--shadow-sm)', boxSizing: 'border-box',
+                transition: 'border-color 0.2s',
               }}
-            >
-              <div style={{ 
-                width: '18px', 
-                height: '18px', 
-                background: 'white', 
-                borderRadius: '50%', 
-                position: 'absolute', 
-                top: '3px',
-                left: isLocationEnabled ? '23px' : '3px',
-                transition: 'all 0.3s'
-              }} />
-            </button>
+              onFocus={(e) => e.target.style.borderColor = 'var(--color-primary, #7a1212)'}
+              onBlur={(e) => { if (!filtersOpen) e.target.style.borderColor = 'rgba(0,0,0,0.12)'; }}
+            />
+
+            {/* Right side: clear X + divider + filter icon */}
+            <div style={{
+              position: 'absolute', right: 598, top: 0, bottom: 0,
+              display: 'flex', alignItems: 'center', gap: 0,
+            }}>
+              {/* Clear button */}
+              {searchQuery && (
+                <button onClick={() => setSearchQuery("")} style={{
+                  background: 'none', border: 'none', cursor: 'pointer',
+                  color: 'var(--color-text-muted)', display: 'flex', alignItems: 'center',
+                  padding: '0 6px', height: '100%',
+                }}>
+                  <X size={13} />
+                </button>
+              )}
+
+              {/* Divider */}
+              <div style={{ width: 1, height: 20, background: 'rgba(0,0,0,0.12)', flexShrink: 0 }} />
+
+              {/* Filter button */}
+              <button
+                onClick={() => setFiltersOpen((o) => !o)}
+                style={{
+                  background: filtersOpen ? 'var(--color-primary, #7a1212)' : 'transparent',
+                  border: 'none', cursor: 'pointer',
+                  display: 'flex', alignItems: 'center', gap: 6,
+                  padding: '0 14px', height: '100%',
+                  borderRadius: '0 9px 9px 0',
+                  color: filtersOpen ? '#fff' : 'var(--color-text-muted, #555)',
+                  transition: 'all 0.2s', flexShrink: 0,
+                }}
+              >
+                <FilterIcon active={filtersOpen} />
+                {activeFilterCount > 0 && (
+                  <span style={{
+                    background: filtersOpen ? 'rgba(255,255,255,0.35)' : 'var(--color-primary, #7a1212)',
+                    color: '#fff', borderRadius: '50%',
+                    width: 16, height: 16, fontSize: '0.62rem', fontWeight: 700,
+                    display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+                    lineHeight: 1,
+                  }}>
+                    {activeFilterCount}
+                  </span>
+                )}
+              </button>
+            </div>
+
+            {/* Filter Dropdown */}
+            {filtersOpen && (
+              <div style={{
+                position: 'absolute', top: 'calc(100% + 6px)', left: 0, right: 0,
+                zIndex: 9999,
+                background: 'white',
+                borderRadius: 12,
+                border: '1px solid rgba(0,0,0,0.1)',
+                boxShadow: '0 8px 32px rgba(0,0,0,0.12)',
+                padding: '16px',
+              }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+                  <span style={{ fontWeight: 700, fontSize: '0.85rem' }}>Filters</span>
+                  {activeFilterCount > 0 && (
+                    <button onClick={resetFilters} style={{
+                      background: 'none', border: 'none', cursor: 'pointer',
+                      fontSize: '0.78rem', color: 'var(--color-primary, #7a1212)',
+                      fontWeight: 600, textDecoration: 'underline', padding: 0,
+                    }}>
+                      Reset all
+                    </button>
+                  )}
+                </div>
+
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 12 }}>
+                  <div>
+                    <label style={labelStyle}>District</label>
+                    <select style={selectStyle} value={district} onChange={(e) => handleDistrictChange(e.target.value)}>
+                      <option>All Districts</option>
+                      <option>Melaka Tengah</option>
+                      <option>Alor Gajah</option>
+                      <option>Jasin</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label style={labelStyle}>Availability</label>
+                    <select style={selectStyle} value={availability} onChange={(e) => setAvailability(e.target.value)}>
+                      <option>All Status</option>
+                      <option>Available</option>
+                      <option>Maintenance</option>
+                      <option>Full</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label style={labelStyle}>Charger Type</label>
+                    <select style={selectStyle} value={chargerType} onChange={(e) => setChargerType(e.target.value)}>
+                      <option>All Types</option>
+                      <option>DC</option>
+                      <option>DC Fast</option>
+                      <option>AC Standard</option>
+                    </select>
+                  </div>
+                </div>
+
+                {activeFilterCount > 0 && (
+                  <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginTop: 12 }}>
+                    {district !== "All Districts" && (
+                      <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, padding: '3px 10px', borderRadius: 20, background: 'rgba(122,18,18,0.08)', fontSize: '0.75rem', fontWeight: 600, color: 'var(--color-primary, #7a1212)' }}>
+                        {district}
+                        <button onClick={() => handleDistrictChange("All Districts")} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, color: 'inherit', display: 'flex', lineHeight: 1 }}><X size={11} /></button>
+                      </span>
+                    )}
+                    {availability !== "All Status" && (
+                      <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, padding: '3px 10px', borderRadius: 20, background: 'rgba(122,18,18,0.08)', fontSize: '0.75rem', fontWeight: 600, color: 'var(--color-primary, #7a1212)' }}>
+                        {availability}
+                        <button onClick={() => setAvailability("All Status")} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, color: 'inherit', display: 'flex', lineHeight: 1 }}><X size={11} /></button>
+                      </span>
+                    )}
+                    {chargerType !== "All Types" && (
+                      <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, padding: '3px 10px', borderRadius: 20, background: 'rgba(122,18,18,0.08)', fontSize: '0.75rem', fontWeight: 600, color: 'var(--color-primary, #7a1212)' }}>
+                        {chargerType}
+                        <button onClick={() => setChargerType("All Types")} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, color: 'inherit', display: 'flex', lineHeight: 1 }}><X size={11} /></button>
+                      </span>
+                    )}
+                  </div>
+                )}
+              </div>
+            )}
           </div>
         </div>
       </div>
 
-      <div style={{ flex: 1, display: 'grid', gridTemplateColumns: '1fr 340px', gap: '24px', position: 'relative' }}>
-        <div className="card" style={{ padding: '0', position: 'relative', overflow: 'hidden', height: '100%' }}>
-          <MapContainer center={mapCenter} zoom={11} style={{ height: '100%', width: '100%', zIndex: 1 }}>
+      {/* ── Body ── */}
+      <div style={{ flex: 1, display: 'grid', gridTemplateColumns: '1fr 340px', gap: '24px', minHeight: 0 }}>
+
+        {/* ── MAP ── */}
+        <div className="card" style={{ padding: 0, position: 'relative', overflow: 'hidden' }}>
+          {district !== "All Districts" && (
+            <div style={{
+              position: 'absolute', top: 12, left: 12, zIndex: 1000,
+              background: 'var(--color-primary, #7a1212)', color: '#fff',
+              padding: '6px 12px', borderRadius: 20, fontSize: '0.82rem', fontWeight: 600,
+              display: 'flex', alignItems: 'center', gap: 8, boxShadow: '0 2px 8px rgba(0,0,0,0.2)',
+            }}>
+              📍 {district}
+              <button onClick={() => handleDistrictChange("All Districts")} style={{
+                background: 'rgba(255,255,255,0.25)', border: 'none', color: '#fff',
+                width: 20, height: 20, borderRadius: '50%', cursor: 'pointer', fontSize: 11,
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+              }}>✕</button>
+            </div>
+          )}
+
+          <MapContainer
+            center={MELAKA_CENTER} zoom={MELAKA_MIN_ZOOM}
+            style={{ width: '100%', height: '100%', zIndex: 1 }}
+            zoomControl maxBounds={MELAKA_BOUNDS}
+            maxBoundsViscosity={1.0} minZoom={MELAKA_MIN_ZOOM} maxZoom={18}
+          >
             <TileLayer
               attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
               url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
             />
-            {filteredStations.map((stn) => (
-              <Marker 
-                key={stn.id} 
-                position={getPos(stn.district)}
-                eventHandlers={{
-                  click: () => setSelectedStation(stn),
-                }}
-              >
-                <Popup>
-                  <div style={{ padding: '5px' }}>
-                    <strong style={{ fontSize: '1rem' }}>{stn.name}</strong>
-                    <div style={{ marginTop: '5px' }}>
-                      <StatusBadge status={stn.status} />
+            <MapController district={district} selectedStation={selectedStation} />
+
+            {filtered.map((s) =>
+              s.lat && s.lng ? (
+                <Marker key={s.id} position={[s.lat, s.lng]}
+                  icon={createIcon(STATUS_COLOR[s.status])}
+                  eventHandlers={{ click: () => handleSelectStation(s) }}
+                >
+                  <Popup>
+                    <div style={{ minWidth: 180 }}>
+                      <strong style={{ display: 'block', marginBottom: 4 }}>{s.name}</strong>
+                      <p style={{ margin: '2px 0', fontSize: 12 }}>{[s.address, s.town].filter(Boolean).join(', ')}</p>
+                      <p style={{ margin: '4px 0', fontSize: 12 }}>
+                        <span style={{ color: STATUS_COLOR[s.status], fontWeight: 700 }}>● {STATUS_LABEL[s.status]}</span>
+                        {' · '}{s.type}
+                      </p>
+                      <p style={{ margin: '2px 0', fontSize: 12 }}>Operator: {s.operator}</p>
+                      {s.usageCost && <p style={{ margin: '2px 0', fontSize: 12 }}>Cost: {s.usageCost}</p>}
                     </div>
-                  </div>
-                </Popup>
-              </Marker>
-            ))}
+                  </Popup>
+                </Marker>
+              ) : null
+            )}
+
+            {isLocationEnabled && userLocation && (
+              <CircleMarker center={userLocation}
+                pathOptions={{ color: 'white', fillColor: '#3b82f6', fillOpacity: 1, weight: 2 }}
+                radius={8}
+              >
+                <Popup><strong>You are here</strong></Popup>
+              </CircleMarker>
+            )}
           </MapContainer>
 
           {!isLocationEnabled && (
-            <div style={{ 
-              position: 'absolute', 
-              top: 0, left: 0, right: 0, bottom: 0, 
-              background: 'rgba(255,255,255,0.7)', 
-              backdropFilter: 'blur(8px)',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              zIndex: 1000
+            <div style={{
+              position: 'absolute', inset: 0,
+              background: 'rgba(255,255,255,0.7)', backdropFilter: 'blur(8px)',
+              display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000,
             }}>
               <div className="card" style={{ maxWidth: '300px', textAlign: 'center', padding: '40px 30px', boxShadow: '0 10px 40px rgba(0,0,0,0.1)' }}>
                 <div style={{ color: 'var(--color-danger)', marginBottom: '15px' }}>
@@ -148,11 +798,7 @@ const MapExplorer = () => {
                 <p style={{ fontSize: '0.9rem', color: 'var(--color-text-muted)', marginBottom: '24px', lineHeight: '1.5' }}>
                   Please turn on your location to access the Melaka EV Network map and find nearby stations.
                 </p>
-                <button 
-                  onClick={toggleLocation}
-                  className="login-btn" 
-                  style={{ padding: '12px 24px', fontSize: '0.9rem' }}
-                >
+                <button onClick={toggleLocation} className="login-btn" style={{ padding: '12px 24px', fontSize: '0.9rem' }}>
                   Enable Location Service
                 </button>
               </div>
@@ -160,70 +806,164 @@ const MapExplorer = () => {
           )}
         </div>
 
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
-          <div className="card" style={{ padding: '20px' }}>
-            <h3 style={{ margin: '0 0 15px 0', fontSize: '1rem' }}>District Filter</h3>
-            <select 
-              className="styled-input"
-              value={district}
-              onChange={(e) => setDistrict(e.target.value)}
-            >
-              <option>All Districts</option>
-              <option>Melaka Tengah</option>
-              <option>Alor Gajah</option>
-              <option>Jasin</option>
-            </select>
-          </div>
+        {/* ── SIDEBAR ── */}
+        <div style={{ display: 'flex', flexDirection: 'column', minHeight: 0 }}>
+          <div className="card" style={{ flex: 1, padding: '24px', display: 'flex', flexDirection: 'column', minHeight: 0, overflowY: 'auto' }}>
 
-          <div className="card" style={{ flex: 1, padding: '24px', display: 'flex', flexDirection: 'column' }}>
             {selectedStation ? (
               <div style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
+                <button 
+                  onClick={() => setSelectedStation(null)}
+                  style={{ display: 'flex', alignItems: 'center', gap: '6px', background: 'transparent', border: 'none', color: 'var(--color-text-muted)', cursor: 'pointer', padding: '0 0 16px 0', fontSize: '0.9rem', fontWeight: 600, width: 'fit-content', transition: 'color 0.2s' }}
+                  onMouseOver={e => e.currentTarget.style.color = 'var(--color-primary)'}
+                  onMouseOut={e => e.currentTarget.style.color = 'var(--color-text-muted)'}
+                >
+                  <ArrowLeft size={16} /> Back to List
+                </button>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '15px' }}>
                   <img src="/logo.png" alt="Logo" style={{ height: '32px', width: 'auto' }} />
                   <StatusBadge status={selectedStation.status} />
                 </div>
                 <h3 style={{ margin: '0 0 4px 0' }}>{selectedStation.name}</h3>
-                <p style={{ color: 'var(--color-text-muted)', margin: '0 0 20px 0', fontSize: '0.9rem' }}>{selectedStation.district}, Melaka</p>
+                <p style={{ color: 'var(--color-text-muted)', margin: '0 0 20px 0', fontSize: '0.9rem' }}>
+                  {[selectedStation.address, selectedStation.town].filter(Boolean).join(', ')}
+                </p>
                 
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', marginBottom: '24px' }}>
                   <div style={{ padding: '12px', background: '#f8f8f8', borderRadius: '10px' }}>
                     <div style={{ fontSize: '0.75rem', color: '#888', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '4px' }}>Rate</div>
-                    <div style={{ fontWeight: 700 }}>{selectedStation.price}</div>
+                    <div style={{ fontWeight: 700, fontSize: '0.85rem', color: currentPortInfo?.color }}>{currentPortInfo?.rate}</div>
                   </div>
                   <div style={{ padding: '12px', background: '#f8f8f8', borderRadius: '10px' }}>
                     <div style={{ fontSize: '0.75rem', color: '#888', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '4px' }}>Type</div>
-                    <div style={{ fontWeight: 700 }}>{selectedStation.type}</div>
+                    <div style={{ fontWeight: 700, fontSize: '0.85rem', color: currentPortInfo?.color }}>{currentPortInfo?.type}</div>
+                  </div>
+                  <div style={{ padding: '12px', background: '#f8f8f8', borderRadius: '10px' }}>
+                    <div style={{ fontSize: '0.75rem', color: '#888', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '4px' }}>Connectors</div>
+                    <div style={{ fontWeight: 700, fontSize: '0.85rem' }}>{selectedStation.connections} Ports</div>
+                  </div>
+                  <div style={{ padding: '12px', background: '#f8f8f8', borderRadius: '10px' }}>
+                    <div style={{ fontSize: '0.75rem', color: '#888', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '4px' }}>Operator</div>
+                    <div style={{ fontWeight: 700, fontSize: '0.85rem' }}>{selectedStation.operator}</div>
                   </div>
                 </div>
 
-                <div style={{ flex: 1 }}>
-                  <h4 style={{ margin: '0 0 12px 0', fontSize: '0.9rem' }}>Bay Availability</h4>
-                  <div style={{ display: 'grid', gap: '10px' }}>
-                    {selectedStation.bays?.map(bay => (
-                      <div key={bay.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 14px', background: 'white', border: '1px solid #eee', borderRadius: '8px' }}>
-                        <div style={{ fontSize: '0.9rem', fontWeight: 500 }}>Charging Bay #{bay.id}</div>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.8rem', fontWeight: 600, color: bay.status === 'available' ? 'var(--color-success)' : 'var(--color-danger)' }}>
-                          <div style={{ width: 8, height: 8, borderRadius: '50%', background: bay.status === 'available' ? 'var(--color-success)' : 'var(--color-danger)' }}></div>
-                          {bay.status === 'available' ? 'Available' : 'Occupied'}
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
+                <div style={{ flex: 1 }}></div>
 
-                <button className="login-btn" style={{ marginTop: '20px' }}>
+                {selectedStation.connections > 1 && (
+                  <div style={{ marginTop: '16px' }}>
+                    <h4 style={{ margin: '0 0 10px 0', fontSize: '0.75rem', color: '#888', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Select Port</h4>
+                    <div style={{ display: 'grid', gridTemplateColumns: `repeat(${Math.min(selectedStation.connections, 4)}, 1fr)`, gap: '8px' }}>
+                      {Array.from({ length: selectedStation.connections }).map((_, i) => {
+                        const portNum = i + 1;
+                        const isOccupied = reservations?.some(r => 
+                          r.station === selectedStation.name && 
+                          (r.status === 'Confirmed' || r.status === 'Active') && 
+                          r.connector.includes(`Port ${portNum}`)
+                        );
+                        
+                        const info = getPortInfo(selectedStation, portNum);
+                        const isSelected = selectedPort === portNum;
+                        
+                        return (
+                          <button
+                            key={i}
+                            disabled={isOccupied}
+                            onClick={() => setSelectedPort(portNum)}
+                            style={{
+                              padding: '10px 4px', borderRadius: '8px', 
+                              border: `2px solid ${isSelected ? info.color : '#eee'}`,
+                              background: isOccupied ? '#f5f5f5' : (isSelected ? `${info.color}15` : 'white'),
+                              color: isOccupied ? '#aaa' : (isSelected ? info.color : 'var(--color-text-main)'),
+                              fontWeight: 600, cursor: isOccupied ? 'not-allowed' : 'pointer', transition: 'all 0.2s',
+                              opacity: isOccupied ? 0.6 : 1,
+                              display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '4px'
+                            }}
+                          >
+                            <span style={{ fontSize: '0.85rem' }}>Port {portNum}</span>
+                            <span style={{ fontSize: '0.65rem', fontWeight: 700, opacity: isOccupied ? 0.5 : 0.8 }}>
+                              {isOccupied ? 'IN USE' : info.type}
+                            </span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+
+                <button 
+                  className="login-btn" 
+                  style={{ marginTop: '20px', opacity: selectedStation.status === 'maintenance' ? 0.5 : 1 }}
+                  disabled={selectedStation.status === 'maintenance'}
+                  onClick={() => {
+                    if (!currentUser) {
+                      alert('Please log in to make a reservation.');
+                      navigate('/login');
+                      return;
+                    }
+                    if (selectedStation.status === 'maintenance') {
+                      alert('This station is currently under maintenance.');
+                      return;
+                    }
+                    setShowPaymentModal(true);
+                  }}
+                >
                   Reserve Now
                 </button>
               </div>
             ) : (
-              <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', textAlign: 'center', color: 'var(--color-text-muted)' }}>
-                <Search size={48} style={{ opacity: 0.2, marginBottom: '15px' }} />
-                <p>Select a charging station on the map to view details and availability.</p>
+              <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0 }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px' }}>
+                  <h3 style={{ margin: 0, fontSize: '1rem' }}>Nearby Stations</h3>
+                </div>
+
+                {!isLocationEnabled ? (
+                  <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 12, textAlign: 'center', padding: '40px 20px' }}>
+                    
+                  </div>
+                ) : !userLocation ? (
+                  <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.9rem', color: 'var(--color-text-muted)', textAlign: 'center' }}>
+                    Waiting for location...
+                  </div>
+                ) : sortedStations.length === 0 ? (
+                  <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.82rem', color: 'var(--color-text-muted)', textAlign: 'center' }}>
+                    No stations match the selected filters.
+                  </div>
+                ) : (
+                  <div style={{ flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '10px', paddingRight: '2px' }}>
+                    {sortedStations.map((stn) => (
+                      <div
+                        key={stn.id}
+                        onClick={() => handleSelectStation(stn)}
+                        className="station-card"
+                        style={{
+                          padding: '12px', border: '1px solid rgba(0,0,0,0.06)', borderRadius: '12px',
+                          cursor: 'pointer', display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+                          transition: 'all 0.2s',
+                          background: selectedStation?.id === stn.id ? 'rgba(122,18,18,0.04)' : 'white',
+                          borderLeft: selectedStation?.id === stn.id ? '3px solid var(--color-primary, #7a1212)' : '1px solid rgba(0,0,0,0.06)',
+                        }}
+                      >
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <div style={{ fontWeight: 600, fontSize: '0.88rem', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                            {stn.name}
+                          </div>
+                          <div style={{ fontSize: '0.75rem', color: 'var(--color-text-muted)', marginTop: '3px' }}>
+                            {stn.distance !== null ? `${stn.distance.toFixed(1)} km away` : (stn.district !== 'Other' ? stn.district : stn.town)}
+                          </div>
+                        </div>
+                        <StatusBadge status={stn.status} />
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
             )}
           </div>
         </div>
       </div>
+
+      <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
     </div>
   );
 };
