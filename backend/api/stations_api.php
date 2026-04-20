@@ -23,16 +23,33 @@ switch ($method) {
         break;
 
     case 'POST':
-        // Add new station
+        // Add or Upsert station (JIT Insertion from Map)
         $input = json_decode(file_get_contents("php://input"), true);
-        if (isset($input['station_name'], $input['district'], $input['total_bays'])) {
-            $available_bays = $input['available_bays'] ?? $input['total_bays'];
+        if (isset($input['station_id'], $input['station_name'], $input['district'])) {
+            $address = $input['address'] ?? null;
+            $operator_name = $input['operator_name'] ?? 'Unknown Operator';
+            $charger_type = $input['charger_type'] ?? 'AC Standard(22kW+)';
+            $total_bays = $input['total_bays'] ?? 1;
+            $connectors = $input['connectors'] ?? 1;
+            $available_bays = $input['available_bays'] ?? $total_bays;
             $status = $input['status'] ?? 'Available';
+            $price_per_kwh = $input['price_per_kwh'] ?? 1.20;
+            $idle_fee = $input['idle_fee'] ?? 0.00;
             
-            $query = "INSERT INTO stations (station_name, district, total_bays, available_bays, status) VALUES (?, ?, ?, ?, ?)";
-            $success = executeAction($query, [$input['station_name'], $input['district'], $input['total_bays'], $available_bays, $status]);
+            $query = "INSERT INTO stations (station_id, station_name, address, operator_name, charger_type, district, total_bays, connectors, available_bays, status, price_per_kwh, idle_fee) 
+                      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                      ON DUPLICATE KEY UPDATE 
+                      station_name = VALUES(station_name),
+                      status = VALUES(status),
+                      available_bays = VALUES(available_bays)";
+                      
+            $success = executeAction($query, [
+                $input['station_id'], $input['station_name'], $address, $operator_name, 
+                $charger_type, $input['district'], $total_bays, $connectors, 
+                $available_bays, $status, $price_per_kwh, $idle_fee
+            ]);
             
-            echo json_encode(["success" => $success, "message" => $success ? "Station created" : "Failed to create station"]);
+            echo json_encode(["success" => $success, "message" => $success ? "Station synchronized" : "Failed to sync station"]);
         } else {
             echo json_encode(["success" => false, "message" => "Missing required fields"]);
         }

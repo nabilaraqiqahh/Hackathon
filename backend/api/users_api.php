@@ -27,9 +27,11 @@ switch ($method) {
         $input = json_decode(file_get_contents("php://input"), true);
         if (isset($input['full_name'], $input['email'])) {
             $user_type = $input['user_type'] ?? 'Driver';
+            $phone_no = $input['phone_no'] ?? null;
+            $password = $input['password'] ?? '123';
             
-            $query = "INSERT INTO users (full_name, email, user_type) VALUES (?, ?, ?)";
-            $new_user_id = executeInsert($query, [$input['full_name'], $input['email'], $user_type]);
+            $query = "INSERT INTO users (full_name, email, phone_no, password, user_type) VALUES (?, ?, ?, ?, ?)";
+            $new_user_id = executeInsert($query, [$input['full_name'], $input['email'], $phone_no, $password, $user_type]);
             
             if ($new_user_id && $user_type === 'Driver') {
                 $brand_id = $input['brand_id'] ?? null;
@@ -49,8 +51,11 @@ switch ($method) {
         // Update user
         $input = json_decode(file_get_contents("php://input"), true);
         if (isset($input['user_id'])) {
-            $query = "UPDATE users SET full_name = ?, user_type = ? WHERE user_id = ?";
-            $success = executeAction($query, [$input['full_name'], $input['user_type'], $input['user_id']]);
+            $phone_no = $input['phone_no'] ?? null;
+            $password = $input['password'] ?? '123';
+            
+            $query = "UPDATE users SET full_name = ?, phone_no = ?, password = ?, user_type = ? WHERE user_id = ?";
+            $success = executeAction($query, [$input['full_name'], $phone_no, $password, $input['user_type'], $input['user_id']]);
             
             if ($success && $input['user_type'] === 'Driver' && isset($input['brand_id'], $input['model_id'])) {
                 executeAction("REPLACE INTO drivers (user_id, brand_id, model_id) VALUES (?, ?, ?)", [$input['user_id'], $input['brand_id'], $input['model_id']]);
