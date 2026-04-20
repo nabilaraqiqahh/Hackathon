@@ -15,6 +15,23 @@ export const Header = () => {
   
   const notificationsCount = isAdmin ? adminNotifications.length : driverNotifications.length;
 
+  const prevCountRef = React.useRef(notificationsCount);
+  const [showDot, setShowDot] = useState(notificationsCount > 0);
+
+  React.useEffect(() => {
+    if (notificationsCount > prevCountRef.current) {
+      setShowDot(true);
+    } else if (notificationsCount === 0) {
+      setShowDot(false);
+    }
+    prevCountRef.current = notificationsCount;
+  }, [notificationsCount]);
+
+  const handleToggle = () => {
+    if (!showDropdown) setShowDot(false);
+    setShowDropdown(!showDropdown);
+  };
+
   // Removed getPageTitle since we are removing the top wording
   return (
     <header className="top-header">
@@ -24,10 +41,10 @@ export const Header = () => {
       <div className="header-actions" style={{ position: 'relative' }}>
         <button 
           style={{ background: 'transparent', color: 'var(--color-primary)', position: 'relative', cursor: 'pointer', border: 'none' }}
-          onClick={() => setShowDropdown(!showDropdown)}
+          onClick={handleToggle}
         >
           <Bell size={24} />
-          {notificationsCount > 0 && (
+          {showDot && notificationsCount > 0 && (
             <div style={{
               position: 'absolute', top: '-4px', right: '-4px', 
               background: isAdmin ? 'var(--color-danger)' : 'var(--color-success)', 

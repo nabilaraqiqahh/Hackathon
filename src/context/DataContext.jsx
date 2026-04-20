@@ -1,158 +1,151 @@
-import React, { createContext, useState, useContext, useEffect } from 'react';
+import React, { createContext, useState, useContext } from 'react';
 
 const DataContext = createContext();
 
 export const useData = () => useContext(DataContext);
 
 export const DataProvider = ({ children }) => {
-  const [users, setUsers] = useState([]);
-  const [stations, setStations] = useState([]);
-  const [reservations, setReservations] = useState([]);
-  const [payments, setPayments] = useState([]);
+  const [users, setUsers] = useState([
+    { id: 'U001', name: 'Nabil Husni', email: 'nabil@melaka.gov.my', phone: '012-3456789', vehicles: [{ id: 'V1', platNo: 'MCU 1234', carModel: 'BYD Seal' }], type: 'Admin', joined: '2025-01-10' },
+    { id: 'D001', name: 'Ahmad Rafiq', email: 'rafiq@gmail.com', phone: '013-9876543', vehicles: [{ id: 'V2', platNo: 'VFD 5678', carModel: 'Tesla Model 3' }], type: 'Driver', joined: '2025-02-15' },
+    { id: 'D002', name: 'Siti Aminah', email: 'siti@outlook.com', phone: '019-1122334', vehicles: [{ id: 'V3', platNo: 'JQQ 9999', carModel: 'Ora Good Cat' }], type: 'Driver', joined: '2025-03-01' },
+  ]);
+
+  const [stations, setStations] = useState([
+    { 
+      id: 'STN-001', 
+      name: 'Stesen EV Melaka Tengah', 
+      district: 'Melaka Tengah', 
+      price: 'RM 15/hour', 
+      type: 'Fast DC', 
+      status: 'Online',
+      bays: [
+        { id: 1, status: 'occupied' },
+        { id: 2, status: 'available' },
+        { id: 3, status: 'available' },
+        { id: 4, status: 'occupied' },
+      ]
+    },
+    { 
+      id: 'STN-002', 
+      name: 'Stesen EV Jasin', 
+      district: 'Jasin', 
+      price: 'RM 10/hour', 
+      type: 'AC Standard', 
+      status: 'Online',
+      bays: [
+        { id: 1, status: 'available' },
+        { id: 2, status: 'available' },
+      ]
+    },
+    { 
+      id: 'STN-003', 
+      name: 'Stesen EV Alor Gajah', 
+      district: 'Alor Gajah', 
+      price: 'RM 12/hour', 
+      type: 'Fast DC', 
+      status: 'Maintenance',
+      bays: [
+        { id: 1, status: 'offline' },
+        { id: 2, status: 'offline' },
+      ]
+    },
+  ]);
+
+  const [reservations, setReservations] = useState([
+    { id: 'RES-101', user: 'Ahmad Rafiq', station: 'Melaka Tengah', date: '2026-04-19', time: '14:00', duration: '2 Hours', connector: 'Type 2 AC', power: '22 kW', status: 'Confirmed' },
+    { id: 'RES-102', user: 'Siti Aminah', station: 'Jasin', date: '2026-04-19', time: '16:30', duration: '1 Hour', connector: 'CCS2 DC', power: '60 kW', status: 'Completed' },
+  ]);
+
+  const [payments, setPayments] = useState([
+    { id: 'PAY-201', user: 'Siti Aminah', amount: 'RM 15.00', date: '2026-04-19', method: 'TNG eWallet', energy: '12.5 kWh', receipt: 'RCP-8832', status: 'Success' },
+    { id: 'PAY-202', user: 'Ahmad Rafiq', amount: 'RM 22.50', date: '2026-04-18', method: 'Visa •••• 4242', energy: '18.0 kWh', receipt: 'RCP-8831', status: 'Success' },
+  ]);
+
   const [currentUser, setCurrentUser] = useState(null);
   const [isLocationEnabled, setIsLocationEnabled] = useState(false);
 
-  const API_BASE = 'http://localhost/hackathon/backend/api';
-
-  // Fetch all initial data
-  const fetchAllData = async () => {
-    try {
-      const [usersRes, stationsRes, resRes, payRes] = await Promise.all([
-        fetch(`${API_BASE}/users_api.php`),
-        fetch(`${API_BASE}/stations_api.php`),
-        fetch(`${API_BASE}/reservations_api.php`),
-        fetch(`${API_BASE}/payments_api.php`)
-      ]);
-
-      const usersData = await usersRes.json();
-      const stationsData = await stationsRes.json();
-      const resData = await resRes.json();
-      const payData = await payRes.json();
-
-      if (usersData.success) {
-        setUsers(usersData.data.map(u => ({
-          id: u.user_id,
-          name: u.full_name,
-          email: u.email,
-          type: u.user_type,
-          joined: '2026-04-20' // Default since not in DB
-        })));
-      }
-      
-      if (stationsData.success) {
-        setStations(stationsData.data.map(s => ({
-          id: s.station_id,
-          name: s.station_name,
-          district: s.district,
-          price: `RM ${s.price_per_kwh}/kwh`,
-          type: s.charger_type,
-          status: s.status === 'Available' ? 'Online' : s.status,
-          bays: [] // We don't track individual bays anymore
-        })));
-      }
-      
-      if (resData.success) {
-        setReservations(resData.data.map(r => ({
-          id: r.reservation_id,
-          user: r.full_name || 'Unknown',
-          station: r.station_name || 'Unknown',
-          date: r.reservation_date,
-          time: r.reservation_time,
-          status: r.status
-        })));
-      }
-      
-      if (payData.success) {
-        setPayments(payData.data.map(p => ({
-          id: p.transaction_id,
-          user: p.full_name || 'Unknown',
-          amount: `RM ${p.amount}`,
-          date: p.payment_date,
-          status: p.status
-        })));
-      }
-    } catch (error) {
-      console.error("Error fetching data:", error);
-    }
-  };
-
-  useEffect(() => {
-    fetchAllData();
-  }, []);
-
   // Auth Helpers
-  const login = async (email, password) => {
-    try {
-      const res = await fetch(`${API_BASE}/auth_api.php`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, password })
-      });
-      const data = await res.json();
-      if (data.success) {
-        const userObj = { ...data.user, name: data.user.full_name, type: data.user.user_type };
-        setCurrentUser(userObj);
-        return userObj;
-      }
-      return false;
-    } catch (err) {
-      console.error(err);
-      return false;
+  const login = (email) => {
+    const user = users.find(u => u.email.toLowerCase() === email.toLowerCase());
+    if (user) {
+      setCurrentUser(user);
+      return true;
     }
+    return false;
   };
 
   const logout = () => setCurrentUser(null);
+
   const toggleLocation = () => setIsLocationEnabled(!isLocationEnabled);
 
   // CRUD Helpers
-  const addUser = async (user) => {
-    // In a real app, you'd POST to users_api.php. Assuming it's done via UI.
-    fetchAllData();
+  const addUser = (user) => setUsers([...users, { ...user, id: `U00${users.length + 1}`, joined: new Date().toISOString().split('T')[0] }]);
+  const deleteUser = (id) => setUsers(users.filter(u => u.id !== id));
+  const updateUser = (updatedUser) => {
+    setUsers(users.map(u => u.id === updatedUser.id ? updatedUser : u));
+    if (currentUser && currentUser.id === updatedUser.id) {
+      setCurrentUser(updatedUser);
+    }
   };
-  const deleteUser = (id) => {}; // Placeholder for API integration
-  const updateUser = (updatedUser) => {}; // Placeholder
-  
-  const addStation = (stn) => {}; // Placeholder
-  const deleteStation = (id) => {}; // Placeholder
-  const updateStationStatus = (id, status) => {}; // Placeholder
 
-  const reserveStation = async (reservation) => {
-    // 1. JIT Upsert Station first
-    try {
-      // Find the station in the live map context (which might not be in DB yet)
-      // We pass the raw station object from the UI to this function if possible.
-      // But currently MapExplorer just passes {user, station(district), date, time, status}.
-      // To properly JIT, we'd need the full station object. 
-      // For now, we'll just attempt to insert the reservation directly.
-      const resPayload = {
-        user_id: currentUser ? currentUser.user_id : 1, // Fallback to 1
-        station_id: 1, // We need actual station_id from Map. MapExplorer currently passes string district!
-        reservation_date: reservation.date,
-        reservation_time: reservation.time,
-        status: reservation.status
-      };
-      
-      const res = await fetch(`${API_BASE}/reservations_api.php`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(resPayload)
-      });
-      
-      if (res.ok) {
-        fetchAllData(); // Refresh reservations
-      }
-    } catch (err) {
-      console.error("Reservation error", err);
+  const addVehicle = (userId, vehicle) => {
+    const user = users.find(u => u.id === userId);
+    if (!user) return;
+    const newVehicle = { ...vehicle, id: `V${Date.now()}` };
+    const updatedUser = { ...user, vehicles: [...(user.vehicles || []), newVehicle] };
+    updateUser(updatedUser);
+  };
+
+  const updateVehicle = (userId, updatedVehicle) => {
+    const user = users.find(u => u.id === userId);
+    if (!user) return;
+    const updatedUser = { ...user, vehicles: user.vehicles.map(v => v.id === updatedVehicle.id ? updatedVehicle : v) };
+    updateUser(updatedUser);
+  };
+
+  const deleteVehicle = (userId, vehicleId) => {
+    const user = users.find(u => u.id === userId);
+    if (!user) return;
+    const updatedUser = { ...user, vehicles: user.vehicles.filter(v => v.id !== vehicleId) };
+    updateUser(updatedUser);
+  };
+  
+  const addStation = (stn) => setStations([...stations, { ...stn, id: `STN-00${stations.length + 1}`, bays: [] }]);
+  const deleteStation = (id) => setStations(stations.filter(s => s.id !== id));
+  const updateStationStatus = (id, status) => {
+    setStations(stations.map(s => s.id === id ? { ...s, status } : s));
+  };
+
+  const reserveStation = (reservation) => {
+    setReservations([{ ...reservation, id: `RES-${100 + reservations.length + 1}` }, ...reservations]);
+  };
+
+  const updateReservation = (id, updates) => {
+    setReservations(reservations.map(r => r.id === id ? { ...r, ...updates } : r));
+  };
+
+  const addPayment = (payment) => {
+    setPayments([{ ...payment, id: `PAY-${200 + payments.length + 1}` }, ...payments]);
+  };
+
+  const releaseHold = (holdAmount, finalAmount) => {
+    const refund = holdAmount - finalAmount;
+    if (refund > 0) {
+      console.log(`Releasing pre-authorization hold of RM ${holdAmount}. Final cost: RM ${finalAmount}. Refunding unused RM ${refund.toFixed(2)}.`);
+    } else {
+      console.log(`Releasing pre-authorization hold of RM ${holdAmount}. Charging final amount of RM ${finalAmount}.`);
     }
   };
 
   const value = {
     users, addUser, deleteUser, updateUser,
     stations, addStation, deleteStation, updateStationStatus,
-    reservations, reserveStation,
-    payments,
+    reservations, reserveStation, updateReservation,
+    payments, addPayment, releaseHold,
     currentUser, login, logout,
-    isLocationEnabled, toggleLocation
+    isLocationEnabled, toggleLocation,
+    addVehicle, updateVehicle, deleteVehicle
   };
 
   return <DataContext.Provider value={value}>{children}</DataContext.Provider>;
