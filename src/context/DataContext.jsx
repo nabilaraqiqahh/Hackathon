@@ -166,11 +166,8 @@ export const DataProvider = ({ children }) => {
     setUsers(users.map(u => u.id === updatedUser.id ? updatedUser : u));
     if (currentUser && currentUser.id === updatedUser.id) {
       setCurrentUser(updatedUser);
-<<<<<<< HEAD
-      localStorage.setItem('currentUser', JSON.stringify(updatedUser));
-=======
       localStorage.setItem('voltpark_user', JSON.stringify(updatedUser));
->>>>>>> origin/member-4
+      localStorage.setItem('currentUser', JSON.stringify(updatedUser));
     }
   };
 
