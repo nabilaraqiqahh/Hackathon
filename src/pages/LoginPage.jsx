@@ -16,9 +16,13 @@ const LoginPage = () => {
     setError('');
     setLoading(true);
 
-    const success = await login(email, password);
-    if (success) {
-      navigate('/dashboard');
+    const user = await login(email, password);
+    if (user) {
+      if (user.type === 'Admin') {
+        navigate('/dashboard');
+      } else {
+        navigate('/map');
+      }
     } else {
       setError('Invalid credentials. Please try again.');
     }

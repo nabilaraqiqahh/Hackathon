@@ -90,8 +90,9 @@ export const DataProvider = ({ children }) => {
       });
       const data = await res.json();
       if (data.success) {
-        setCurrentUser({ ...data.user, name: data.user.full_name }); // Map full_name to name for UI
-        return true;
+        const userObj = { ...data.user, name: data.user.full_name, type: data.user.user_type };
+        setCurrentUser(userObj);
+        return userObj;
       }
       return false;
     } catch (err) {
