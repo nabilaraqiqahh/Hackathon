@@ -10,14 +10,11 @@ export const DataProvider = ({ children }) => {
   const [stations, setStations] = useState([]);
   const [reservations, setReservations] = useState([]);
   const [payments, setPayments] = useState([]);
-  const [feedbacks, setFeedbacks] = useState([]);
-
   const [currentUser, setCurrentUser] = useState(() => {
     const savedUser = localStorage.getItem('voltpark_user');
     return savedUser ? JSON.parse(savedUser) : null;
   });
   const [isLocationEnabled, setIsLocationEnabled] = useState(false);
-<<<<<<< HEAD
   
   // Try to load user from localStorage on mount
   useEffect(() => {
@@ -26,7 +23,7 @@ export const DataProvider = ({ children }) => {
       setCurrentUser(JSON.parse(savedUser));
     }
   }, []);
-=======
+
   const [announcements, setAnnouncements] = useState([
     { 
       id: 'ANN-001', 
@@ -53,7 +50,6 @@ export const DataProvider = ({ children }) => {
   const [maintenanceTasks, setMaintenanceTasks] = useState([
     { id: 'MT-101', feedbackId: 'FB-000', station: 'Stesen EV Melaka Tengah', issueDetails: 'Screen frozen', scheduledDate: '2026-04-21', technician: 'Ah Chong', notes: 'Take spare screen', status: 'Scheduled' }
   ]);
->>>>>>> origin/member-4
 
   // Fetch all initial data
   const fetchData = async () => {
