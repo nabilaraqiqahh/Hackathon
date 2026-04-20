@@ -136,16 +136,32 @@ export const DataProvider = ({ children }) => {
     return () => clearInterval(interval);
   }, []);
 
-  const login = async (email) => {
-    // We already fetched users, so we can check local state
-    const user = users.find(u => u.email.toLowerCase() === email.toLowerCase());
-    if (user) {
-      setCurrentUser(user);
-      localStorage.setItem('voltpark_user', JSON.stringify(user));
-      localStorage.setItem('currentUser', JSON.stringify(user));
-      return true;
+  const login = async (email, password) => {
+    try {
+      const res = await fetch(`${API_BASE}/auth_api.php`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, password })
+      });
+      const data = await res.json();
+      if (data.success) {
+        const user = {
+          id: data.user.user_id,
+          name: data.user.full_name,
+          email: data.user.email,
+          phone: data.user.phone_no,
+          type: data.user.user_type
+        };
+        setCurrentUser(user);
+        localStorage.setItem('voltpark_user', JSON.stringify(user));
+        localStorage.setItem('currentUser', JSON.stringify(user));
+        return user;
+      }
+      return null;
+    } catch (e) {
+      console.error("Login Error:", e);
+      return null;
     }
-    return false;
   };
 
   const logout = () => {
