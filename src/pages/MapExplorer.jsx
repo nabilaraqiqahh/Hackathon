@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Navigation, Search, X, CreditCard, Building, CheckCircle, ArrowLeft } from 'lucide-react';
+import { Navigation, Search, X, ArrowLeft } from 'lucide-react';
 import { MapContainer, TileLayer, Marker, Popup, CircleMarker, useMap } from 'react-leaflet';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
@@ -199,7 +199,11 @@ function calculateDistance(lat1, lon1, lat2, lon2) {
 }
 
 const MapExplorer = () => {
+<<<<<<< HEAD
   const { isLocationEnabled, toggleLocation, currentUser, reserveStation, reservations, addPayment } = useData();
+=======
+  const { isLocationEnabled, toggleLocation } = useData();
+>>>>>>> origin/member-4
   const navigate = useNavigate();
 
   const [stations, setStations]               = useState([]);
@@ -210,7 +214,7 @@ const MapExplorer = () => {
   const filterRef                             = useRef(null);
 
   const [selectedStation, setSelectedStation] = useState(null);
-  const [selectedPort, setSelectedPort] = useState(1);
+
   const [userLocation, setUserLocation]       = useState(null);
 
   const [searchQuery, setSearchQuery]         = useState("");
@@ -219,12 +223,7 @@ const MapExplorer = () => {
   const [chargerType, setChargerType]         = useState("All Types");
   const [filtersOpen, setFiltersOpen]         = useState(false);
 
-  // Payment states
-  const [showPaymentModal, setShowPaymentModal] = useState(false);
-  const [paymentMethod, setPaymentMethod] = useState('card');
-  const [targetAmount, setTargetAmount] = useState(10);
-  const [isProcessing, setIsProcessing] = useState(false);
-  const [isSuccess, setIsSuccess] = useState(false);
+
 
   const activeFilterCount = [
     district !== "All Districts",
@@ -232,24 +231,10 @@ const MapExplorer = () => {
     chargerType !== "All Types",
   ].filter(Boolean).length;
 
-  const currentPortInfo = getPortInfo(selectedStation, selectedPort);
+  const currentPortInfo = getPortInfo(selectedStation, 1);
 
   const handleSelectStation = (stn) => {
     setSelectedStation(stn);
-    // Find first available port so we don't default to an occupied one
-    let firstAvailable = 1;
-    for (let i = 1; i <= stn.connections; i++) {
-      const isOccupied = reservations?.some(r => 
-        r.station === stn.name && 
-        (r.status === 'Confirmed' || r.status === 'Active') && 
-        r.connector.includes(`Port ${i}`)
-      );
-      if (!isOccupied) {
-        firstAvailable = i;
-        break;
-      }
-    }
-    setSelectedPort(firstAvailable);
   };
 
   useEffect(() => {
@@ -362,6 +347,7 @@ const MapExplorer = () => {
     setChargerType("All Types");
   }
 
+<<<<<<< HEAD
   const handlePayNow = () => {
     setIsProcessing(true);
     setTimeout(() => {
@@ -406,6 +392,7 @@ const MapExplorer = () => {
     }, 1500);
   };
 
+
   const filtered = stations.filter((s) => {
     if (searchQuery) {
       const q = searchQuery.toLowerCase();
@@ -445,115 +432,6 @@ const MapExplorer = () => {
   return (
     <div style={{ height: 'calc(100vh - 120px)', display: 'flex', flexDirection: 'column', position: 'relative' }}>
 
-      {showPaymentModal && (
-        <div className="modal-overlay" style={{ zIndex: 9999 }}>
-          <div className="card" style={{ maxWidth: '440px', width: '100%', margin: '20px', overflow: 'hidden' }}>
-            {isSuccess ? (
-              <div style={{ padding: '40px', textAlign: 'center' }}>
-                <div style={{ display: 'inline-flex', background: 'rgba(45, 138, 39, 0.1)', color: 'var(--color-success)', padding: '16px', borderRadius: '50%', marginBottom: '20px' }}>
-                  <CheckCircle size={56} />
-                </div>
-                <h3 style={{ marginBottom: '8px' }}>Payment Successful!</h3>
-                <p style={{ color: 'var(--color-text-muted)', margin: 0 }}>Your reservation at {selectedStation?.name} is confirmed.</p>
-              </div>
-            ) : (
-              <>
-                <div className="card-header" style={{ padding: '20px 24px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <h3 style={{ margin: 0, fontSize: '1.2rem' }}>Checkout</h3>
-                  <button onClick={() => !isProcessing && setShowPaymentModal(false)} style={{ background: 'transparent', color: '#999', border: 'none', cursor: 'pointer' }}>
-                    <X size={24} />
-                  </button>
-                </div>
-                <div className="card-body" style={{ padding: '24px' }}>
-                  <div style={{ background: 'rgba(128,0,0,0.03)', padding: '16px', borderRadius: '12px', marginBottom: '24px', border: '1px solid rgba(128,0,0,0.1)' }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '12px' }}>
-                      <span style={{ color: 'var(--color-text-muted)' }}>Station</span>
-                      <span style={{ fontWeight: 600 }}>{selectedStation?.name}</span>
-                    </div>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '12px' }}>
-                      <span style={{ color: 'var(--color-text-muted)' }}>Port / Type</span>
-                      <span style={{ fontWeight: 600 }}>
-                        {selectedStation?.connections > 1 ? `Port ${selectedPort} (${currentPortInfo?.type})` : currentPortInfo?.type}
-                      </span>
-                    </div>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '12px' }}>
-                      <span style={{ color: 'var(--color-text-muted)' }}>Rate</span>
-                      <span style={{ fontWeight: 600 }}>{currentPortInfo?.rate}</span>
-                    </div>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '12px' }}>
-                      <span style={{ color: 'var(--color-text-muted)' }}>Hold Amount</span>
-                      <span style={{ fontWeight: 600 }}>RM {targetAmount === 'Full' ? 150 : targetAmount}.00</span>
-                    </div>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', borderTop: '1px dashed #ccc', paddingTop: '12px', marginTop: '4px' }}>
-                      <span style={{ color: 'var(--color-text-main)', fontWeight: 600 }}>Pre-Authorization</span>
-                      <span style={{ fontWeight: 700, color: 'var(--color-primary)' }}>RM {targetAmount === 'Full' ? 150 : targetAmount}.00</span>
-                    </div>
-                  </div>
-                  
-                  <h4 style={{ marginBottom: '12px', fontSize: '1rem' }}>Target Amount</h4>
-                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '8px', marginBottom: '24px' }}>
-                    {[10, 30, 50, 'Full'].map(amt => (
-                      <button
-                        key={amt}
-                        onClick={() => setTargetAmount(amt)}
-                        style={{
-                          padding: '12px 4px',
-                          border: `2px solid ${targetAmount === amt ? 'var(--color-primary)' : '#eee'}`,
-                          borderRadius: '8px',
-                          background: targetAmount === amt ? 'rgba(128,0,0,0.02)' : 'white',
-                          fontWeight: 600,
-                          fontSize: '0.85rem',
-                          color: targetAmount === amt ? 'var(--color-primary)' : 'var(--color-text-main)',
-                          cursor: 'pointer',
-                          transition: 'all 0.2s'
-                        }}
-                      >
-                        {amt === 'Full' ? 'Full Charge' : `RM ${amt}`}
-                      </button>
-                    ))}
-                  </div>
-
-                  <h4 style={{ marginBottom: '16px', fontSize: '1rem' }}>Payment Method</h4>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', marginBottom: '32px' }}>
-                    <label style={{ display: 'flex', alignItems: 'center', gap: '16px', padding: '16px', border: `2px solid ${paymentMethod === 'card' ? 'var(--color-primary)' : '#eee'}`, borderRadius: '12px', cursor: 'pointer', background: paymentMethod === 'card' ? 'rgba(128,0,0,0.02)' : 'white', transition: 'all 0.2s' }}>
-                      <input type="radio" name="payment" checked={paymentMethod === 'card'} onChange={() => setPaymentMethod('card')} style={{ display: 'none' }} disabled={isProcessing} />
-                      <CreditCard size={24} color={paymentMethod === 'card' ? 'var(--color-primary)' : '#888'} />
-                      <div style={{ flex: 1 }}>
-                        <div style={{ fontWeight: 600, color: paymentMethod === 'card' ? 'var(--color-primary)' : 'var(--color-text-main)' }}>Credit / Debit Card</div>
-                        <div style={{ fontSize: '0.8rem', color: 'var(--color-text-muted)' }}>Pay securely with your card</div>
-                      </div>
-                    </label>
-                    <label style={{ display: 'flex', alignItems: 'center', gap: '16px', padding: '16px', border: `2px solid ${paymentMethod === 'fpx' ? 'var(--color-primary)' : '#eee'}`, borderRadius: '12px', cursor: 'pointer', background: paymentMethod === 'fpx' ? 'rgba(128,0,0,0.02)' : 'white', transition: 'all 0.2s' }}>
-                      <input type="radio" name="payment" checked={paymentMethod === 'fpx'} onChange={() => setPaymentMethod('fpx')} style={{ display: 'none' }} disabled={isProcessing} />
-                      <Building size={24} color={paymentMethod === 'fpx' ? 'var(--color-primary)' : '#888'} />
-                      <div style={{ flex: 1 }}>
-                        <div style={{ fontWeight: 600, color: paymentMethod === 'fpx' ? 'var(--color-primary)' : 'var(--color-text-main)' }}>FPX Online Banking</div>
-                        <div style={{ fontSize: '0.8rem', color: 'var(--color-text-muted)' }}>Direct transfer from your bank</div>
-                      </div>
-                    </label>
-                  </div>
-
-                  <button 
-                    className="login-btn" 
-                    style={{ width: '100%', padding: '16px', fontSize: '1.05rem', opacity: isProcessing ? 0.7 : 1, display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '10px' }}
-                    disabled={isProcessing}
-                    onClick={handlePayNow}
-                  >
-                    {isProcessing ? (
-                      <>
-                        <div style={{ width: '20px', height: '20px', border: '3px solid rgba(255,255,255,0.3)', borderTopColor: '#fff', borderRadius: '50%', animation: 'spin 1s linear infinite' }}></div>
-                        Authorizing...
-                      </>
-                    ) : (
-                      `Authorize RM ${targetAmount === 'Full' ? 150 : targetAmount}.00`
-                    )}
-                  </button>
-                </div>
-              </>
-            )}
-          </div>
-        </div>
-      )}
 
       {/* ── Top bar ── */}
       <div className="mb-3">
@@ -890,64 +768,34 @@ const MapExplorer = () => {
 
                 {selectedStation.connections > 1 && (
                   <div style={{ marginTop: '16px' }}>
-                    <h4 style={{ margin: '0 0 10px 0', fontSize: '0.75rem', color: '#888', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Select Port</h4>
+                    <h4 style={{ margin: '0 0 10px 0', fontSize: '0.75rem', color: '#888', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Available Ports</h4>
                     <div style={{ display: 'grid', gridTemplateColumns: `repeat(${Math.min(selectedStation.connections, 4)}, 1fr)`, gap: '8px' }}>
                       {Array.from({ length: selectedStation.connections }).map((_, i) => {
                         const portNum = i + 1;
-                        const isOccupied = reservations?.some(r => 
-                          r.station === selectedStation.name && 
-                          (r.status === 'Confirmed' || r.status === 'Active') && 
-                          r.connector.includes(`Port ${portNum}`)
-                        );
-                        
                         const info = getPortInfo(selectedStation, portNum);
-                        const isSelected = selectedPort === portNum;
                         
                         return (
-                          <button
+                          <div
                             key={i}
-                            disabled={isOccupied}
-                            onClick={() => setSelectedPort(portNum)}
                             style={{
                               padding: '10px 4px', borderRadius: '8px', 
-                              border: `2px solid ${isSelected ? info.color : '#eee'}`,
-                              background: isOccupied ? '#f5f5f5' : (isSelected ? `${info.color}15` : 'white'),
-                              color: isOccupied ? '#aaa' : (isSelected ? info.color : 'var(--color-text-main)'),
-                              fontWeight: 600, cursor: isOccupied ? 'not-allowed' : 'pointer', transition: 'all 0.2s',
-                              opacity: isOccupied ? 0.6 : 1,
+                              border: `2px solid ${info.color}22`,
+                              background: `${info.color}08`,
+                              color: info.color,
+                              fontWeight: 600,
                               display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '4px'
                             }}
                           >
                             <span style={{ fontSize: '0.85rem' }}>Port {portNum}</span>
-                            <span style={{ fontSize: '0.65rem', fontWeight: 700, opacity: isOccupied ? 0.5 : 0.8 }}>
-                              {isOccupied ? 'IN USE' : info.type}
+                            <span style={{ fontSize: '0.65rem', fontWeight: 700, opacity: 0.8 }}>
+                              {info.type}
                             </span>
-                          </button>
+                          </div>
                         );
                       })}
                     </div>
                   </div>
                 )}
-
-                <button 
-                  className="login-btn" 
-                  style={{ marginTop: '20px', opacity: selectedStation.status === 'maintenance' ? 0.5 : 1 }}
-                  disabled={selectedStation.status === 'maintenance'}
-                  onClick={() => {
-                    if (!currentUser) {
-                      alert('Please log in to make a reservation.');
-                      navigate('/login');
-                      return;
-                    }
-                    if (selectedStation.status === 'maintenance') {
-                      alert('This station is currently under maintenance.');
-                      return;
-                    }
-                    setShowPaymentModal(true);
-                  }}
-                >
-                  Reserve Now
-                </button>
               </div>
             ) : (
               <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0 }}>
