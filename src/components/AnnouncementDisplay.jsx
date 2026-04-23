@@ -58,7 +58,11 @@ const AnnouncementDisplay = ({ announcements }) => {
                             color: '#94a3b8',
                             fontWeight: '600'
                         }}>
-                            Posted by {announcement.authorName} • {announcement.createdAt?.toDate?.().toLocaleDateString() || 'Recently'}
+                            Posted by {announcement.authorName} • {
+                                announcement.createdAt instanceof Date 
+                                    ? announcement.createdAt.toLocaleDateString() 
+                                    : announcement.createdAt?.toDate?.()?.toLocaleDateString() || 'Recently'
+                            }
                         </div>
                     </div>
                 ))}

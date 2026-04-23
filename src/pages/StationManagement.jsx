@@ -1,12 +1,17 @@
 import React, { useState } from 'react';
 import { useData } from '../context/DataContext';
-import { Plus, MapPin, MoreVertical, Battery, PenTool, Trash, X } from 'lucide-react';
+import { Plus, MapPin, MoreVertical, Battery, PenTool, Trash } from 'lucide-react';
 
 const StationManagement = () => {
   const { stations, addStation, deleteStation, updateStationStatus, updateBayStatus } = useData();
   const [showModal, setShowModal] = useState(false);
-  const [activeBaySelector, setActiveBaySelector] = useState(null);
+  const [searchQuery, setSearchQuery] = useState("");
   const [newStation, setNewStation] = useState({ name: '', district: 'Melaka Tengah', type: 'Fast DC', price: 'RM 15/hour' });
+
+  const filteredStations = stations.filter(stn => 
+    stn.name.toLowerCase().includes(searchQuery.toLowerCase()) || 
+    stn.district.toLowerCase().includes(searchQuery.toLowerCase())
+  );
 
   const handleSubmit = (e) => {
     e.preventDefault();
@@ -16,19 +21,35 @@ const StationManagement = () => {
 
   return (
     <div>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px', flexWrap: 'wrap', gap: '16px' }}>
         <div>
           <h2>Stations Tracker</h2>
           <p style={{ color: 'var(--color-text-muted)', margin: 0 }}>Monitor station health, manage charging bays, and expand the network.</p>
         </div>
-        <button className="btn-export" onClick={() => setShowModal(true)}>
-          <Plus size={18} />
-          Add Station
-        </button>
+        
+        <div style={{ display: 'flex', gap: '12px', flex: 1, justifyContent: 'flex-end', minWidth: '300px' }}>
+          <div style={{ position: 'relative', flex: 1, maxWidth: '400px' }}>
+            <input 
+              type="text" 
+              placeholder="Search stations or districts..." 
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              style={{
+                width: '100%', padding: '10px 16px', borderRadius: '8px', 
+                border: '1px solid rgba(0,0,0,0.1)', background: 'white',
+                fontSize: '0.9rem', outline: 'none', transition: 'all 0.2s'
+              }}
+            />
+          </div>
+          <button className="btn-export" onClick={() => setShowModal(true)}>
+            <Plus size={18} />
+            Add Station
+          </button>
+        </div>
       </div>
 
       <div className="grid-3">
-        {stations.map(stn => (
+        {filteredStations.map(stn => (
           <div key={stn.id} className="card station-card">
             <div className="card-header" style={{ background: 'linear-gradient(135deg, var(--color-primary), var(--color-primary-dark))', border: 'none' }}>
               <h3 style={{ margin: 0, color: 'white' }}>{stn.name}</h3>
@@ -53,94 +74,69 @@ const StationManagement = () => {
 
               <div style={{ marginBottom: '20px' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
-                  <span style={{ fontSize: '0.85rem', fontWeight: 600 }}>Bay Availability</span>
+                  <span style={{ fontSize: '0.85rem', fontWeight: 600 }}>Manage Ports</span>
                   <span style={{ fontSize: '0.85rem', color: 'var(--color-text-muted)' }}>
-                    {stn.bays.filter(b => b.status === 'available').length} / {stn.bays.length} Available
+                    {stn.bays.filter(b => b.status === 'available').length} / {stn.bays.length} Live
                   </span>
                 </div>
-                <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
+                <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
                   {stn.bays.map(bay => {
-                    const isSelected = activeBaySelector?.stationId === stn.id && activeBaySelector?.bayId === bay.id;
-                    const bayIdStr = `B${String(bay.id).padStart(3, '0')}`;
+                    const statusColors = {
+                      available: 'var(--color-success)',
+                      maintenance: '#f59e0b',
+                      occupied: 'var(--color-danger)',
+                      full: 'var(--color-danger)'
+                    };
                     
-                    let color = '#ccc';
-                    if (bay.status === 'available') color = '#2d8a27'; // Green
-                    else if (bay.status === 'occupied') color = '#f5a623'; // Yellow
-                    else if (bay.status === 'offline') color = '#d32f2f'; // Red
+                    const cycleStatus = () => {
+                      const order = ['available', 'maintenance', 'occupied'];
+                      const currentIndex = order.indexOf(bay.status === 'full' ? 'occupied' : bay.status);
+                      const nextStatus = order[(currentIndex + 1) % order.length];
+                      // Map frontend status back to DB status (Capitalized)
+                      const dbStatus = nextStatus === 'available' ? 'Available' : nextStatus === 'maintenance' ? 'Maintenance' : 'Occupied';
+                      updateBayStatus(stn.id, bay.id, dbStatus);
+                    };
 
                     return (
-                      <div key={bay.id} style={{ position: 'relative' }}>
-                        <div 
-                          onClick={() => setActiveBaySelector(isSelected ? null : { stationId: stn.id, bayId: bay.id })}
-                          style={{ 
-                            width: '40px', height: '40px', borderRadius: '8px', 
-                            backgroundColor: color, cursor: 'pointer',
-                            transition: 'all 0.2s cubic-bezier(0.175, 0.885, 0.32, 1.275)',
-                            transform: isSelected ? 'scale(1.15)' : 'scale(1)',
-                            boxShadow: isSelected ? `0 0 0 2px #fff, 0 0 0 4px ${color}, 0 4px 8px rgba(0,0,0,0.1)` : '0 2px 4px rgba(0,0,0,0.1)',
-                            display: 'flex', alignItems: 'center', justifyContent: 'center'
-                          }}
-                          title={`Bay ${bayIdStr} - ${bay.status}`}
-                          onMouseEnter={(e) => { if (!isSelected) e.currentTarget.style.transform = 'scale(1.08)'; }}
-                          onMouseLeave={(e) => { if (!isSelected) e.currentTarget.style.transform = 'scale(1)'; }}
-                        >
-                           <span style={{color: 'white', fontSize: '0.7rem', fontWeight: 'bold'}}>{bay.id}</span>
-                        </div>
-
-                        {isSelected && (
-                          <div style={{
-                            position: 'absolute', top: '50px', left: '50%', transform: 'translateX(-50%)',
-                            background: '#fff', border: '1px solid #eee', borderRadius: '12px', padding: '16px',
-                            boxShadow: '0 10px 25px rgba(0,0,0,0.15)', zIndex: 50, minWidth: '180px',
-                            animation: 'fadeIn 0.2s ease-out'
-                          }}>
-                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px', paddingBottom: '8px', borderBottom: '1px solid #f0f0f0' }}>
-                              <div style={{ fontWeight: 600, fontSize: '1rem', color: '#333' }}>Bay {bayIdStr}</div>
-                              <X size={16} style={{ cursor: 'pointer', color: '#999' }} onClick={(e) => { e.stopPropagation(); setActiveBaySelector(null); }} />
-                            </div>
-                            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                              <button 
-                                onClick={(e) => { e.stopPropagation(); updateBayStatus(stn.id, bay.id, 'available'); setActiveBaySelector(null); }}
-                                style={{ 
-                                  padding: '8px', fontSize: '0.85rem', color: '#2d8a27', background: 'transparent',
-                                  border: '1px solid #2d8a27', borderRadius: '6px', cursor: 'pointer', fontWeight: 600,
-                                  transition: 'background 0.2s'
-                                }}
-                                onMouseEnter={e => e.currentTarget.style.background = 'rgba(45, 138, 39, 0.1)'}
-                                onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
-                              >
-                                Set Available
-                              </button>
-                              <button 
-                                onClick={(e) => { e.stopPropagation(); updateBayStatus(stn.id, bay.id, 'offline'); setActiveBaySelector(null); }}
-                                style={{ 
-                                  padding: '8px', fontSize: '0.85rem', color: '#d32f2f', background: 'transparent',
-                                  border: '1px solid #d32f2f', borderRadius: '6px', cursor: 'pointer', fontWeight: 600,
-                                  transition: 'background 0.2s'
-                                }}
-                                onMouseEnter={e => e.currentTarget.style.background = 'rgba(211, 47, 47, 0.1)'}
-                                onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
-                              >
-                                Set Offline
-                              </button>
-                            </div>
-                          </div>
-                        )}
-                      </div>
+                      <button 
+                        key={bay.id} 
+                        onClick={cycleStatus}
+                        title={`Click to cycle status: ${bay.name || 'Port ' + bay.id}`}
+                        style={{ 
+                          flex: 1,
+                          minWidth: '60px',
+                          padding: '6px 4px',
+                          borderRadius: '6px',
+                          border: 'none',
+                          cursor: 'pointer',
+                          fontSize: '0.7rem',
+                          fontWeight: 700,
+                          color: 'white',
+                          backgroundColor: statusColors[bay.status] || '#ccc',
+                          transition: 'all 0.2s',
+                          boxShadow: '0 2px 4px rgba(0,0,0,0.1)'
+                        }}
+                        onMouseOver={e => e.currentTarget.style.filter = 'brightness(1.1)'}
+                        onMouseOut={e => e.currentTarget.style.filter = 'none'}
+                      >
+                        {bay.name ? bay.name.replace('Port ', 'P') : `P${bay.id}`}
+                      </button>
                     );
                   })}
                 </div>
+                <div style={{ marginTop: '8px', fontSize: '0.65rem', color: '#888', fontStyle: 'italic' }}>
+                  💡 Click port to cycle: Green (Available) → Yellow (Maint.) → Red (Close)
+                </div>
               </div>
 
-              <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '16px' }}>
+              <div style={{ display: 'flex', gap: '12px' }}>
                 <button 
                   onClick={() => deleteStation(stn.id)}
-                  style={{ width: '40px', height: '40px', padding: '8px', border: '1px solid rgba(211, 47, 47, 0.2)', color: 'var(--color-danger)', backgroundColor: 'transparent', display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius: '8px', cursor: 'pointer', transition: 'all 0.2s' }}
-                  onMouseEnter={e => e.currentTarget.style.background = 'rgba(211, 47, 47, 0.1)'}
-                  onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
-                  title="Delete Station"
+                  className="nav-link" 
+                  style={{ flex: 1, padding: '8px', border: '1px solid rgba(211, 47, 47, 0.2)', color: 'var(--color-danger)', justifyContent: 'center' }}
                 >
-                  <Trash size={16} />
+                  <Trash size={14} style={{ marginRight: '6px' }} />
+                  Remove Station
                 </button>
               </div>
             </div>

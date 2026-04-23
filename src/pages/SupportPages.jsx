@@ -5,7 +5,13 @@ import { Play, Square, CheckCircle, Zap, Leaf, Clock } from 'lucide-react';
 export const BookingHistory = () => {
   const { reservations, currentUser, updateReservation, stations, releaseHold, addPayment } = useData();
   const isAdmin = currentUser?.type === 'Admin';
-  const displayedReservations = isAdmin ? reservations : reservations.filter(r => r.user === currentUser?.name);
+  
+  // Sort from newest to oldest
+  const sortedReservations = [...reservations].sort((a, b) => {
+    return (b.reservation_id || b.id) - (a.reservation_id || a.id);
+  });
+  
+  const displayedReservations = isAdmin ? sortedReservations : sortedReservations.filter(r => r.user === currentUser?.name || r.user_id === currentUser?.id);
 
   const [activeSession, setActiveSession] = useState(null);
   const [completedSession, setCompletedSession] = useState(null);
@@ -34,6 +40,8 @@ export const BookingHistory = () => {
         if (pMatch) numericPower = parseFloat(pMatch[1]);
       }
 
+      const targetAmount = parseFloat(activeSession.targetAmount) || 0;
+
       tickRef.current = setInterval(() => {
         // 1 real second = 60 simulated seconds (1 minute)
         const energyPerTick = (numericPower / 3600) * 60; // dynamically calculated kWh based on API power
@@ -50,7 +58,7 @@ export const BookingHistory = () => {
         setRunningCost(statsRef.current.cost);
         setBatterySoc(statsRef.current.soc);
 
-        if (statsRef.current.cost >= activeSession.targetAmount || statsRef.current.soc >= 100) {
+        if ((targetAmount > 0 && statsRef.current.cost >= targetAmount) || statsRef.current.soc >= 100) {
           handleStop(activeSession, true);
         }
       }, 1000);
@@ -59,9 +67,9 @@ export const BookingHistory = () => {
   }, [activeSession]);
 
   const handleStart = (res) => {
-    const stn = stations.find(s => s.district === res.station || s.name === res.station);
-    if (stn && stn.status !== 'Online') {
-      alert(`Cannot start charging. Station is currently ${stn.status}.`);
+    const stn = stations.find(s => s.district === res.station || s.name === res.station || s.id === res.station_id);
+    if (stn && (stn.status === 'Maintenance' || stn.status === 'Offline')) {
+      alert(`Cannot start charging. Station is currently under ${stn.status}.`);
       return;
     }
     
@@ -72,7 +80,7 @@ export const BookingHistory = () => {
     setRunningCost(0);
     setBatterySoc(initialSoc);
     
-    updateReservation(res.id, { status: 'Active' });
+    updateReservation(res.reservation_id || res.id, { status: 'Active' });
     setActiveSession(res);
   };
 
@@ -85,10 +93,13 @@ export const BookingHistory = () => {
     const s = (statsRef.current.time % 60).toString().padStart(2, '0');
     const finalTime = `${m}:${s}`;
 
+    const targetAmount = parseFloat(res.targetAmount) || 0;
+
     // Settlement
-    const refundAmount = res.targetAmount > finalCost ? (res.targetAmount - finalCost).toFixed(2) : 0;
-    releaseHold(res.targetAmount, finalCost);
+    const refundAmount = targetAmount > finalCost ? (targetAmount - finalCost).toFixed(2) : 0;
+    releaseHold(targetAmount, finalCost);
     addPayment({
+      user_id: currentUser.id,
       user: res.user,
       amount: `RM ${finalCost}`,
       date: new Date().toISOString().split('T')[0],
@@ -98,14 +109,21 @@ export const BookingHistory = () => {
       status: 'Success'
     });
 
-    updateReservation(res.id, { 
+    updateReservation(res.reservation_id || res.id, { 
       status: 'Completed', 
       actualDuration: finalTime,
-      actualCost: finalCost
+      actualCost: finalCost,
+      actualEnergy: finalEnergy
     });
 
     setActiveSession(null);
     setCompletedSession({ ...res, actualDuration: finalTime, actualEnergy: finalEnergy, refundAmount });
+    
+    // Redirect to payment history after a short delay
+    setTimeout(() => {
+      setCompletedSession(null);
+      navigate('/payment');
+    }, 2500);
   };
 
   return (
@@ -311,7 +329,13 @@ export const BookingHistory = () => {
 export const PaymentHistory = () => {
   const { payments, currentUser } = useData();
   const isAdmin = currentUser?.type === 'Admin';
-  const displayedPayments = isAdmin ? payments : payments.filter(p => p.user === currentUser?.name);
+  
+  // Sort from newest to oldest
+  const sortedPayments = [...payments].sort((a, b) => {
+    return (b.payment_id || b.id) - (a.payment_id || a.id);
+  });
+  
+  const displayedPayments = isAdmin ? sortedPayments : sortedPayments.filter(p => p.user === currentUser?.name || p.user_id === currentUser?.id);
 
   return (
     <div>
@@ -349,7 +373,11 @@ export const PaymentHistory = () => {
                     </span>
                   </td>
                   <td style={{ fontFamily: 'monospace', color: 'var(--color-text-muted)' }}>{pay.receipt || `RCP-00${index+1}`}</td>
-                  <td style={{ color: 'var(--color-primary)', fontWeight: 700 }}>{pay.amount}</td>
+                  <td style={{ color: 'var(--color-primary)', fontWeight: 700 }}>
+                    RM {typeof pay.amount === 'number' || !isNaN(parseFloat(pay.amount)) 
+                      ? (parseFloat(pay.amount).toFixed(2)) 
+                      : pay.amount}
+                  </td>
                   <td>
                     <span className="badge completed">Success</span>
                   </td>

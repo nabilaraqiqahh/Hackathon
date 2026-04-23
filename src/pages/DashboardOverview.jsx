@@ -10,19 +10,20 @@ const DashboardOverview = () => {
 
   const [activeBaySelector, setActiveBaySelector] = useState(null);
 
-  const totalRevenue = payments.reduce((acc, curr) => acc + parseFloat(curr.amount.replace('RM ', '')), 0).toFixed(2);
-  const activeStations = stations.filter(s => s.status === 'Online').length;
-  const maintenanceStations = stations.filter(s => s.status === 'Maintenance').length;
+  const totalRevenue = (payments || []).reduce((acc, curr) => {
+    const amt = typeof curr.amount === 'string' ? curr.amount.replace('RM ', '') : curr.amount;
+    return acc + parseFloat(amt || 0);
+  }, 0).toFixed(2);
+  const totalPorts = (stations || []).reduce((acc, s) => acc + (s.bays?.length || 0), 0);
+  const maintenanceStations = (stations || []).filter(s => s.status === 'Maintenance').length;
+  const ongoingMaintenance = (maintenanceTasks || []).filter(t => t.status === 'Ongoing' || t.status === 'Scheduled').length;
 
-  // New KPI Calculations
-  const pendingIssues = feedbacks?.filter(fb => fb.status === 'Pending').length || 0;
-  
-  const districtCount = {};
-  feedbacks?.forEach(fb => {
-    if(fb.district) {
-      districtCount[fb.district] = (districtCount[fb.district] || 0) + 1;
+  const districtCount = (feedbacks || []).reduce((acc, curr) => {
+    if (curr.type === 'issue') {
+      acc[curr.district] = (acc[curr.district] || 0) + 1;
     }
-  });
+    return acc;
+  }, {});
   const mostReportedDistrict = Object.keys(districtCount).sort((a,b) => districtCount[b] - districtCount[a])[0] || 'None';
 
   // Chart Data
@@ -63,8 +64,8 @@ const DashboardOverview = () => {
         <div className="kpi-card" style={{ borderTopColor: 'var(--color-success)' }}>
           <div className="kpi-content">
             <h3>Active Chargers</h3>
-            <div className="value">{activeStations}</div>
-            <p style={{ fontSize: '0.85rem', marginTop: '4px' }}>Units currently online</p>
+            <div className="value">{totalPorts}</div>
+            <p style={{ fontSize: '0.85rem', marginTop: '4px' }}>Total charging ports available</p>
           </div>
           <div className="kpi-icon" style={{ color: 'var(--color-success)', background: 'rgba(45, 138, 39, 0.1)' }}>
             <Zap size={24} />
@@ -90,51 +91,7 @@ const DashboardOverview = () => {
         </div>
       </div>
 
-      {mostReportedDistrict !== 'None' && (
-        <div style={{ background: '#f4f7fb', borderLeft: '4px solid var(--color-primary)', padding: '16px', borderRadius: '0 8px 8px 0', display: 'flex', gap: '12px', alignItems: 'center', marginBottom: '24px', boxShadow: '0 2px 4px rgba(0,0,0,0.05)' }}>
-          <Info size={24} color="var(--color-primary)" />
-          <div>
-            <strong>Smart Insight:</strong> {mostReportedDistrict} has the highest number of reported issues, indicating higher maintenance demand or older infrastructure.
-          </div>
-        </div>
-      )}
-
       <AnnouncementManager />
-
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(400px, 1fr))', gap: '24px', marginBottom: '24px' }}>
-        <div className="card">
-          <div className="card-header">
-            <h3 style={{ margin: 0 }}>Reported Issues by District</h3>
-          </div>
-          <div className="card-body" style={{ height: '300px' }}>
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={barData} margin={{ top: 20, right: 30, left: 0, bottom: 5 }}>
-                <XAxis dataKey="name" />
-                <YAxis allowDecimals={false} />
-                <RechartsTooltip cursor={{fill: 'rgba(0,0,0,0.05)'}} />
-                <Bar dataKey="Issues" fill="var(--color-primary)" radius={[4, 4, 0, 0]} />
-              </BarChart>
-            </ResponsiveContainer>
-          </div>
-        </div>
-
-        <div className="card">
-          <div className="card-header">
-            <h3 style={{ margin: 0 }}>Feedback Categories</h3>
-          </div>
-          <div className="card-body" style={{ height: '300px' }}>
-            <ResponsiveContainer width="100%" height="100%">
-              <PieChart>
-                <Pie data={pieData} cx="50%" cy="50%" innerRadius={60} outerRadius={100} paddingAngle={5} dataKey="value">
-                  {pieData.map((entry, index) => <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />)}
-                </Pie>
-                <RechartsTooltip />
-                <Legend />
-              </PieChart>
-            </ResponsiveContainer>
-          </div>
-        </div>
-      </div>
 
       <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: '24px' }}>
         <div className="card">

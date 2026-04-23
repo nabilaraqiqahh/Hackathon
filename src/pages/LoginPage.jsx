@@ -17,17 +17,23 @@ const LoginPage = () => {
     setError('');
     setLoading(true);
 
-    const user = await login(email, password);
-    if (user) {
-      if (user.type === 'Admin') {
-        navigate('/dashboard');
+    try {
+      const user = await login(email, password);
+      if (user) {
+        // Redirect based on role
+        if (user.type === 'Admin') {
+          navigate('/dashboard');
+        } else {
+          navigate('/map');
+        }
       } else {
-        navigate('/map');
+        setError('Invalid email or password. Please check your credentials.');
       }
-    } else {
-      setError('Invalid credentials. Please try again.');
+    } catch (err) {
+      setError('Connection error. Please make sure the backend is running.');
+    } finally {
+      setLoading(false);
     }
-    setLoading(false);
   };
 
   return (

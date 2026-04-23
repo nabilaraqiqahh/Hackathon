@@ -149,7 +149,11 @@ const AnnouncementManager = () => {
                                     {announcement.message}
                                 </p>
                                 <div style={{ fontSize: '12px', color: '#94a3b8', marginTop: '12px' }}>
-                                    By {announcement.authorName} • {announcement.createdAt?.toDate?.().toLocaleDateString() || 'Just now'}
+                                    By {announcement.authorName} • {
+                                        announcement.createdAt instanceof Date 
+                                            ? announcement.createdAt.toLocaleDateString() 
+                                            : announcement.createdAt?.toDate?.()?.toLocaleDateString() || 'Just now'
+                                    }
                                 </div>
                             </div>
                             <div style={{ display: 'flex', gap: '8px', marginLeft: '16px' }}>

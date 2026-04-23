@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Navigation, Search, X, ArrowLeft, Check, CreditCard, Smartphone } from 'lucide-react';
+import { Navigation, Search, X, CreditCard, Building, CheckCircle, ArrowLeft } from 'lucide-react';
 import { MapContainer, TileLayer, Marker, Popup, CircleMarker, useMap } from 'react-leaflet';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
@@ -67,11 +67,23 @@ L.Icon.Default.mergeOptions({
 });
 
 
-function createIcon(color) {
+function getStatusKey(status) {
+  if (!status) return 'unknown';
+  const s = String(status).toLowerCase().trim();
+  
+  if (s === 'online' || s === 'available' || s === 'ready') return 'available';
+  if (s === 'maintenance' || s === 'repair' || s === 'warning') return 'maintenance';
+  if (s === 'offline' || s === 'full' || s === 'occupied' || s === 'busy') return 'full';
+  
+  return 'unknown';
+}
+
+function createIcon(color = "#94a3b8") {
+  const markerColor = color || "#94a3b8";
   return L.divIcon({
-    className: "",
+    className: "custom-marker",
     html: `<div style="width:30px;height:30px;border-radius:50% 50% 50% 0;
-      background:${color};border:3px solid #fff;
+      background:${markerColor};border:3px solid #fff;
       box-shadow:0 2px 8px rgba(0,0,0,0.25);
       transform:rotate(-45deg);position:relative;">
       <span style="position:absolute;inset:0;display:flex;align-items:center;
@@ -84,26 +96,12 @@ function createIcon(color) {
 const STATUS_COLOR = { available: "#22c55e", maintenance: "#f59e0b", full: "#ef4444", unknown: "#94a3b8" };
 const STATUS_LABEL = { available: "Available", maintenance: "Maintenance", full: "Full", unknown: "Unknown" };
 
-function deriveStatus(poi, reservations = [], stationName = "", totalConnections = 1) {
-  // First check local reservations to see if it's full
-  const activeReservations = reservations.filter(r => 
-    (r.station === stationName || r.station_name === stationName) && 
-    (r.status === 'Confirmed' || r.status === 'Active') &&
-    (r.date === new Date().toISOString().split('T')[0] || r.reservation_date === new Date().toISOString().split('T')[0])
-  );
-  
-  if (activeReservations.length >= totalConnections && totalConnections > 0) {
-    return "full";
-  }
-
-  // If not full locally, check OCM status
+function deriveStatus(poi) {
   const id = poi.StatusType?.ID;
   if (id === 50)  return "available";
   if (id === 75)  return "maintenance";
   if (id === 210) return "full";
-  
-  // If OCM is unknown but we have it in our DB, we assume it's available since it's not locally full
-  return "available";
+  return "unknown";
 }
 
 const getPortInfo = (station, portNum) => {
@@ -199,7 +197,8 @@ function calculateDistance(lat1, lon1, lat2, lon2) {
 }
 
 const MapExplorer = () => {
-  const { isLocationEnabled, toggleLocation, currentUser, reserveStation, reservations, addPayment } = useData();
+  const { isLocationEnabled, toggleLocation, currentUser, reserveStation, reservations } = useData();
+  const isAdmin = currentUser?.type === 'Admin';
   const navigate = useNavigate();
 
   const [stations, setStations]               = useState([]);
@@ -210,13 +209,7 @@ const MapExplorer = () => {
   const filterRef                             = useRef(null);
 
   const [selectedStation, setSelectedStation] = useState(null);
-  const [selectedPort, setSelectedPort]       = useState(1);
-  const [showPaymentModal, setShowPaymentModal] = useState(false);
-  const [paymentMethod, setPaymentMethod]       = useState('card');
-  const [targetAmount, setTargetAmount]         = useState(10);
-  const [isProcessing, setIsProcessing]         = useState(false);
-  const [isSuccess, setIsSuccess]               = useState(false);
-
+  const [selectedPort, setSelectedPort] = useState(1);
   const [userLocation, setUserLocation]       = useState(null);
 
   const [searchQuery, setSearchQuery]         = useState("");
@@ -225,7 +218,12 @@ const MapExplorer = () => {
   const [chargerType, setChargerType]         = useState("All Types");
   const [filtersOpen, setFiltersOpen]         = useState(false);
 
-
+  // Payment states
+  const [showPaymentModal, setShowPaymentModal] = useState(false);
+  const [paymentMethod, setPaymentMethod] = useState('card');
+  const [targetAmount, setTargetAmount] = useState(10);
+  const [isProcessing, setIsProcessing] = useState(false);
+  const [isSuccess, setIsSuccess] = useState(false);
 
   const activeFilterCount = [
     district !== "All Districts",
@@ -233,10 +231,24 @@ const MapExplorer = () => {
     chargerType !== "All Types",
   ].filter(Boolean).length;
 
-  const currentPortInfo = getPortInfo(selectedStation, 1);
+  const currentPortInfo = getPortInfo(selectedStation, selectedPort);
 
   const handleSelectStation = (stn) => {
     setSelectedStation(stn);
+    // Find first available port so we don't default to an occupied one
+    let firstAvailable = 1;
+    for (let i = 1; i <= stn.connections; i++) {
+      const isOccupied = reservations?.some(r => 
+        r.station === stn.name && 
+        (r.status === 'Confirmed' || r.status === 'Active') && 
+        r.connector.includes(`Port ${i}`)
+      );
+      if (!isOccupied) {
+        firstAvailable = i;
+        break;
+      }
+    }
+    setSelectedPort(firstAvailable);
   };
 
   useEffect(() => {
@@ -252,63 +264,28 @@ const MapExplorer = () => {
   async function fetchStations() {
     setLoading(true);
     try {
-      const params = new URLSearchParams({
-        key: OCM_API_KEY,
-        latitude: MELAKA_CENTER[0], longitude: MELAKA_CENTER[1],
-        distance: 10, distanceunit: "KM",
-        maxresults: 100, compact: true, verbose: false,
-        output: "json", countrycode: "MY",
-      });
-      const res  = await fetch(`https://api.openchargemap.io/v3/poi/?${params}`);
+      const res = await fetch(`http://localhost/hackathon/backend/api/stations_api.php`);
       if (!res.ok) throw new Error(`API error ${res.status}`);
       const data = await res.json();
 
-      const mapped = data.map((poi) => {
-        const title   = poi.AddressInfo?.Title || "";
-        const cost    = poi.UsageCost || "";
-        
-        const conns = poi.Connections || [];
-        const types = [...new Set(conns.map((c) => {
-          const t = c.ConnectionType?.Title || "";
-          if (t.includes("CHAdeMO") || t.includes("CCS") || t.toLowerCase().includes("dc")) return "DC Fast";
-          if (t.toLowerCase().includes("fast")) return "DC Fast";
-          return "AC Standard";
-        }))];
-        
-        let baseType = types[0] || "AC Standard";
-        
-        // Fallback: If OCM connector data is generic but title or cost explicitly says DC
-        if (title.toLowerCase().includes("dc") || cost.toLowerCase().includes("dc")) {
-          if (!baseType.includes("DC")) {
-            baseType = "DC Fast";
-          }
-        } else if (title.toLowerCase().includes("ac") || cost.toLowerCase().includes("ac")) {
-          if (!baseType.includes("AC") && !baseType.includes("DC")) {
-            baseType = "AC Standard";
-          }
-        }
-
-        const lat     = poi.AddressInfo?.Latitude;
-        const lng     = poi.AddressInfo?.Longitude;
-        const address = poi.AddressInfo?.AddressLine1 || "";
-        const town    = poi.AddressInfo?.Town || "";
-        
-        const status = deriveStatus(poi, reservations, title || "Unknown Station", conns.length || 1);
-        
-        return {
-          id: poi.ID, name: title || "Unknown Station",
-          address, town,
-          district: classifyDistrict(lat, lng, title, address, town),
-          lat, lng,
-          status:      status,
-          type:        baseType,
-          usageCost:   poi.UsageCost || null,
-          operator:    poi.OperatorInfo?.Title || "Unknown Operator",
-          connections: conns.length || 1,
-        };
-      }).filter((s) => s.lat && s.lng && isStrictlyInMelaka(s.lat, s.lng));
-
-      setStations(mapped);
+      if (data.success) {
+        const mapped = data.data.map((stn) => ({
+          id: stn.station_id,
+          name: stn.station_name,
+          address: stn.address || "",
+          town: stn.district || "",
+          district: stn.district,
+          lat: parseFloat(stn.latitude) || 2.29,
+          lng: parseFloat(stn.longitude) || 102.30,
+          status: stn.status,
+          type: stn.charger_type,
+          usageCost: stn.price_per_kwh ? `RM ${stn.price_per_kwh}/kWh` : null,
+          operator: stn.operator_name || "Unknown Operator",
+          connections: stn.connectors || 1,
+        }));
+        setStations(mapped);
+      }
+      
       setLastUpdated(new Date().toLocaleTimeString());
       setError(null);
     } catch (err) {
@@ -322,7 +299,7 @@ const MapExplorer = () => {
     fetchStations();
     intervalRef.current = setInterval(fetchStations, 60000);
     return () => clearInterval(intervalRef.current);
-  }, [reservations]); // Re-run if reservations change to update full/available status
+  }, []);
 
   useEffect(() => {
     let watchId;
@@ -349,50 +326,61 @@ const MapExplorer = () => {
     setChargerType("All Types");
   }
 
-  const handlePayNow = () => {
+  const handlePayNow = async () => {
     setIsProcessing(true);
-    setTimeout(() => {
-      const holdAmount = targetAmount === 'Full' ? 150 : targetAmount;
-      
-      reserveStation({
-        user_id: currentUser.id || currentUser.user_id,
-        user: currentUser.name || currentUser.full_name,
-        station_id: selectedStation.id,
-        station: selectedStation.name,
-        address: selectedStation.address,
-        district: selectedStation.district,
-        operator: selectedStation.operator,
-        charger_type: selectedStation.type,
-        connections: selectedStation.connections,
-        date: new Date().toISOString().split('T')[0],
-        time: new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false }),
-        targetAmount: holdAmount,
-        paymentMethod: paymentMethod === 'card' ? 'Visa •••• 4242' : 'FPX Maybank2u',
-        connector: selectedStation.connections > 1 ? `Port ${selectedPort} (${currentPortInfo.type})` : currentPortInfo.type,
-        power: selectedStation.name.match(/(\d+)\s*kW/i) ? `${selectedStation.name.match(/(\d+)\s*kW/i)[1]}kW` : (currentPortInfo.type.includes('DC') ? '120kW' : '11kW'),
-        rate: currentPortInfo.rate,
-        status: 'Confirmed'
-      });
+    
+    // Most important part: save the chosen amount
+    const holdAmount = targetAmount === 'Full' ? 150 : targetAmount;
+    
+    const resPayload = {
+      user_id: currentUser.id,
+      user: currentUser.name,
+      station_id: selectedStation.id,
+      station: selectedStation.name,
+      address: selectedStation.address,
+      operator: selectedStation.operator,
+      connections: selectedStation.connections,
+      district: selectedStation.district,
+      charger_type: selectedStation.type,
+      date: new Date().toISOString().split('T')[0],
+      time: new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false }),
+      targetAmount: holdAmount,
+      paymentMethod: paymentMethod === 'card' ? 'Visa •••• 4242' : 'FPX Maybank2u',
+      connector: selectedStation.connections > 1 ? `Port ${selectedPort} (${currentPortInfo.type})` : currentPortInfo.type,
+      power: selectedStation.name.match(/(\d+)\s*kW/i) ? `${selectedStation.name.match(/(\d+)\s*kW/i)[1]}kW` : (currentPortInfo.type.includes('DC') ? '120kW' : '11kW'),
+      rate: currentPortInfo.rate,
+      status: 'Confirmed'
+    };
+
+    try {
+      // Still save to DB so it shows up in history, but don't hang if it's slow
+      reserveStation(resPayload);
       
       addPayment({
-        user_id: currentUser.id || currentUser.user_id,
-        user: currentUser.name || currentUser.full_name,
-        amount: holdAmount,
-        method: paymentMethod === 'card' ? 'Visa •••• 4242' : 'FPX Maybank2u',
-        date: new Date().toISOString().split('T')[0]
+        user_id: currentUser.id,
+        user: currentUser.name,
+        amount: holdAmount, // numeric only
+        method: resPayload.paymentMethod,
+        energy: 'Pre-authorization',
+        status: 'Hold'
       });
-      
-      setIsProcessing(false);
-      setIsSuccess(true);
-      
-      setTimeout(() => {
-        setIsSuccess(false);
-        setShowPaymentModal(false);
-        navigate('/reservations');
-      }, 2000);
-    }, 1500);
-  };
 
+      // Dummy loading delay
+      setTimeout(() => {
+        setIsProcessing(false);
+        setIsSuccess(true);
+        
+        setTimeout(() => {
+          setIsSuccess(false);
+          setShowPaymentModal(false);
+          navigate('/reservations');
+        }, 600);
+      }, 1000);
+    } catch (e) {
+      // Fallback redirect
+      navigate('/reservations');
+    }
+  };
 
   const filtered = stations.filter((s) => {
     if (searchQuery) {
@@ -433,6 +421,115 @@ const MapExplorer = () => {
   return (
     <div style={{ height: 'calc(100vh - 120px)', display: 'flex', flexDirection: 'column', position: 'relative' }}>
 
+      {showPaymentModal && (
+        <div className="modal-overlay" style={{ zIndex: 9999 }}>
+          <div className="card" style={{ maxWidth: '440px', width: '100%', margin: '20px', overflow: 'hidden' }}>
+            {isSuccess ? (
+              <div style={{ padding: '40px', textAlign: 'center' }}>
+                <div style={{ display: 'inline-flex', background: 'rgba(45, 138, 39, 0.1)', color: 'var(--color-success)', padding: '16px', borderRadius: '50%', marginBottom: '20px' }}>
+                  <CheckCircle size={56} />
+                </div>
+                <h3 style={{ marginBottom: '8px' }}>Payment Successful!</h3>
+                <p style={{ color: 'var(--color-text-muted)', margin: 0 }}>Your reservation at {selectedStation?.name} is confirmed.</p>
+              </div>
+            ) : (
+              <>
+                <div className="card-header" style={{ padding: '20px 24px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <h3 style={{ margin: 0, fontSize: '1.2rem' }}>Checkout</h3>
+                  <button onClick={() => !isProcessing && setShowPaymentModal(false)} style={{ background: 'transparent', color: '#999', border: 'none', cursor: 'pointer' }}>
+                    <X size={24} />
+                  </button>
+                </div>
+                <div className="card-body" style={{ padding: '24px' }}>
+                  <div style={{ background: 'rgba(128,0,0,0.03)', padding: '16px', borderRadius: '12px', marginBottom: '24px', border: '1px solid rgba(128,0,0,0.1)' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '12px' }}>
+                      <span style={{ color: 'var(--color-text-muted)' }}>Station</span>
+                      <span style={{ fontWeight: 600 }}>{selectedStation?.name}</span>
+                    </div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '12px' }}>
+                      <span style={{ color: 'var(--color-text-muted)' }}>Port / Type</span>
+                      <span style={{ fontWeight: 600 }}>
+                        {selectedStation?.connections > 1 ? `Port ${selectedPort} (${currentPortInfo?.type})` : currentPortInfo?.type}
+                      </span>
+                    </div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '12px' }}>
+                      <span style={{ color: 'var(--color-text-muted)' }}>Rate</span>
+                      <span style={{ fontWeight: 600 }}>{currentPortInfo?.rate}</span>
+                    </div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '12px' }}>
+                      <span style={{ color: 'var(--color-text-muted)' }}>Hold Amount</span>
+                      <span style={{ fontWeight: 600 }}>RM {targetAmount === 'Full' ? 150 : targetAmount}.00</span>
+                    </div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', borderTop: '1px dashed #ccc', paddingTop: '12px', marginTop: '4px' }}>
+                      <span style={{ color: 'var(--color-text-main)', fontWeight: 600 }}>Pre-Authorization</span>
+                      <span style={{ fontWeight: 700, color: 'var(--color-primary)' }}>RM {targetAmount === 'Full' ? 150 : targetAmount}.00</span>
+                    </div>
+                  </div>
+                  
+                  <h4 style={{ marginBottom: '12px', fontSize: '1rem' }}>Target Amount</h4>
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '8px', marginBottom: '24px' }}>
+                    {[10, 30, 50, 'Full'].map(amt => (
+                      <button
+                        key={amt}
+                        onClick={() => setTargetAmount(amt)}
+                        style={{
+                          padding: '12px 4px',
+                          border: `2px solid ${targetAmount === amt ? 'var(--color-primary)' : '#eee'}`,
+                          borderRadius: '8px',
+                          background: targetAmount === amt ? 'rgba(128,0,0,0.02)' : 'white',
+                          fontWeight: 600,
+                          fontSize: '0.85rem',
+                          color: targetAmount === amt ? 'var(--color-primary)' : 'var(--color-text-main)',
+                          cursor: 'pointer',
+                          transition: 'all 0.2s'
+                        }}
+                      >
+                        {amt === 'Full' ? 'Full Charge' : `RM ${amt}`}
+                      </button>
+                    ))}
+                  </div>
+
+                  <h4 style={{ marginBottom: '16px', fontSize: '1rem' }}>Payment Method</h4>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', marginBottom: '32px' }}>
+                    <label style={{ display: 'flex', alignItems: 'center', gap: '16px', padding: '16px', border: `2px solid ${paymentMethod === 'card' ? 'var(--color-primary)' : '#eee'}`, borderRadius: '12px', cursor: 'pointer', background: paymentMethod === 'card' ? 'rgba(128,0,0,0.02)' : 'white', transition: 'all 0.2s' }}>
+                      <input type="radio" name="payment" checked={paymentMethod === 'card'} onChange={() => setPaymentMethod('card')} style={{ display: 'none' }} disabled={isProcessing} />
+                      <CreditCard size={24} color={paymentMethod === 'card' ? 'var(--color-primary)' : '#888'} />
+                      <div style={{ flex: 1 }}>
+                        <div style={{ fontWeight: 600, color: paymentMethod === 'card' ? 'var(--color-primary)' : 'var(--color-text-main)' }}>Credit / Debit Card</div>
+                        <div style={{ fontSize: '0.8rem', color: 'var(--color-text-muted)' }}>Pay securely with your card</div>
+                      </div>
+                    </label>
+                    <label style={{ display: 'flex', alignItems: 'center', gap: '16px', padding: '16px', border: `2px solid ${paymentMethod === 'fpx' ? 'var(--color-primary)' : '#eee'}`, borderRadius: '12px', cursor: 'pointer', background: paymentMethod === 'fpx' ? 'rgba(128,0,0,0.02)' : 'white', transition: 'all 0.2s' }}>
+                      <input type="radio" name="payment" checked={paymentMethod === 'fpx'} onChange={() => setPaymentMethod('fpx')} style={{ display: 'none' }} disabled={isProcessing} />
+                      <Building size={24} color={paymentMethod === 'fpx' ? 'var(--color-primary)' : '#888'} />
+                      <div style={{ flex: 1 }}>
+                        <div style={{ fontWeight: 600, color: paymentMethod === 'fpx' ? 'var(--color-primary)' : 'var(--color-text-main)' }}>FPX Online Banking</div>
+                        <div style={{ fontSize: '0.8rem', color: 'var(--color-text-muted)' }}>Direct transfer from your bank</div>
+                      </div>
+                    </label>
+                  </div>
+
+                  <button 
+                    className="login-btn" 
+                    style={{ width: '100%', padding: '16px', fontSize: '1.05rem', opacity: isProcessing ? 0.7 : 1, display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '10px' }}
+                    disabled={isProcessing}
+                    onClick={handlePayNow}
+                  >
+                    {isProcessing ? (
+                      <>
+                        <div style={{ width: '20px', height: '20px', border: '3px solid rgba(255,255,255,0.3)', borderTopColor: '#fff', borderRadius: '50%', animation: 'spin 1s linear infinite' }}></div>
+                        Authorizing...
+                      </>
+                    ) : (
+                      `Authorize RM ${targetAmount === 'Full' ? 150 : targetAmount}.00`
+                    )}
+                  </button>
+                </div>
+              </>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* ── Top bar ── */}
       <div className="mb-3">
@@ -629,13 +726,6 @@ const MapExplorer = () => {
         </div>
       </div>
 
-      {searchQuery && (
-        <div style={{ background: '#f4f7fb', padding: '12px 16px', borderRadius: '8px', marginBottom: '16px', fontSize: '0.9rem', color: '#1e3a8a', display: 'flex', justifyContent: 'space-between', alignItems: 'center', boxShadow: 'var(--shadow-sm)' }}>
-          <span>Showing results for <strong>"{searchQuery}"</strong></span>
-          <span className="badge" style={{ background: 'var(--color-primary)', color: 'white' }}>{filtered.length} matching stations</span>
-        </div>
-      )}
-
       {/* ── Body ── */}
       <div style={{ flex: 1, display: 'grid', gridTemplateColumns: '1fr 340px', gap: '24px', minHeight: 0 }}>
 
@@ -669,10 +759,11 @@ const MapExplorer = () => {
             />
             <MapController district={district} selectedStation={selectedStation} />
 
-            {filtered.map((s) =>
-              s.lat && s.lng ? (
+            {filtered.map((s) => {
+              const statusKey = getStatusKey(s.status);
+              return s.lat && s.lng ? (
                 <Marker key={s.id} position={[s.lat, s.lng]}
-                  icon={createIcon(STATUS_COLOR[s.status])}
+                  icon={createIcon(STATUS_COLOR[statusKey])}
                   eventHandlers={{ click: () => handleSelectStation(s) }}
                 >
                   <Popup>
@@ -680,7 +771,7 @@ const MapExplorer = () => {
                       <strong style={{ display: 'block', marginBottom: 4 }}>{s.name}</strong>
                       <p style={{ margin: '2px 0', fontSize: 12 }}>{[s.address, s.town].filter(Boolean).join(', ')}</p>
                       <p style={{ margin: '4px 0', fontSize: 12 }}>
-                        <span style={{ color: STATUS_COLOR[s.status], fontWeight: 700 }}>● {STATUS_LABEL[s.status]}</span>
+                        <span style={{ color: STATUS_COLOR[statusKey], fontWeight: 700 }}>● {STATUS_LABEL[statusKey]}</span>
                         {' · '}{s.type}
                       </p>
                       <p style={{ margin: '2px 0', fontSize: 12 }}>Operator: {s.operator}</p>
@@ -688,8 +779,8 @@ const MapExplorer = () => {
                     </div>
                   </Popup>
                 </Marker>
-              ) : null
-            )}
+              ) : null;
+            })}
 
             {isLocationEnabled && userLocation && (
               <CircleMarker center={userLocation}
@@ -767,50 +858,85 @@ const MapExplorer = () => {
 
                 <div style={{ flex: 1 }}></div>
 
-                {selectedStation.status === 'available' && currentUser?.type === 'User' && (
-                  <button 
-                    onClick={() => setShowPaymentModal(true)}
-                    className="login-btn"
-                    style={{ width: '100%', padding: '14px', borderRadius: '12px', fontWeight: 700, fontSize: '0.95rem', background: 'var(--color-primary)', color: 'white', border: 'none', cursor: 'pointer', boxShadow: '0 4px 12px rgba(122,18,18,0.2)', transition: 'transform 0.2s, box-shadow 0.2s' }}
-                    onMouseOver={e => { e.currentTarget.style.transform = 'translateY(-2px)'; e.currentTarget.style.boxShadow = '0 6px 16px rgba(122,18,18,0.3)'; }}
-                    onMouseOut={e => { e.currentTarget.style.transform = 'translateY(0)'; e.currentTarget.style.boxShadow = '0 4px 12px rgba(122,18,18,0.2)'; }}
-                  >
-                    Reserve Now
-                  </button>
-                )}
+                {/* Driver-only features: Port selection and Reserve button */}
+                {currentUser?.type !== 'Admin' && (
+                  <>
+                    {selectedStation.connections > 1 && (
+                      <div style={{ marginTop: '16px' }}>
+                        <h4 style={{ margin: '0 0 10px 0', fontSize: '0.75rem', color: '#888', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Select Port</h4>
+                        <div style={{ display: 'grid', gridTemplateColumns: `repeat(${Math.min(selectedStation.connections, 4)}, 1fr)`, gap: '8px' }}>
+                          {Array.from({ length: selectedStation.connections }).map((_, i) => {
+                            const portNum = i + 1;
+                            const isOccupied = reservations?.some(r => 
+                              r.station === selectedStation.name && 
+                              (r.status === 'Confirmed' || r.status === 'Active') && 
+                              r.connector.includes(`Port ${portNum}`)
+                            );
+                            
+                            const info = getPortInfo(selectedStation, portNum);
+                            const isSelected = selectedPort === portNum;
+                            
+                            return (
+                              <button
+                                key={i}
+                                disabled={isOccupied}
+                                onClick={() => setSelectedPort(portNum)}
+                                style={{
+                                  padding: '10px 4px', borderRadius: '8px', 
+                                  border: `2px solid ${isSelected ? info.color : '#eee'}`,
+                                  background: isOccupied ? '#f5f5f5' : (isSelected ? `${info.color}15` : 'white'),
+                                  color: isOccupied ? '#aaa' : (isSelected ? info.color : 'var(--color-text-main)'),
+                                  fontWeight: 600, cursor: isOccupied ? 'not-allowed' : 'pointer', transition: 'all 0.2s',
+                                  opacity: isOccupied ? 0.6 : 1,
+                                  display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '4px'
+                                }}
+                              >
+                                <span style={{ fontSize: '0.85rem' }}>Port {portNum}</span>
+                                <span style={{ fontSize: '0.65rem', fontWeight: 700, opacity: isOccupied ? 0.5 : 0.8 }}>
+                                  {isOccupied ? 'IN USE' : info.type}
+                                </span>
+                              </button>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    )}
 
-                {selectedStation.connections > 1 && (
-                  <div style={{ marginTop: '16px' }}>
-                    <h4 style={{ margin: '0 0 10px 0', fontSize: '0.75rem', color: '#888', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Available Ports</h4>
-                    <div style={{ display: 'grid', gridTemplateColumns: `repeat(${Math.min(selectedStation.connections, 4)}, 1fr)`, gap: '8px' }}>
-                      {Array.from({ length: selectedStation.connections }).map((_, i) => {
-                        const portNum = i + 1;
-                        const info = getPortInfo(selectedStation, portNum);
-                        const isSel = selectedPort === portNum;
-                        
-                        return (
-                          <div
-                            key={i}
-                            onClick={() => setSelectedPort(portNum)}
-                            style={{
-                              padding: '10px 4px', borderRadius: '8px', 
-                              border: isSel ? `2px solid ${info.color}` : `2px solid ${info.color}22`,
-                              background: isSel ? `${info.color}15` : `${info.color}08`,
-                              color: info.color,
-                              cursor: 'pointer', fontWeight: 600,
-                              display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '4px',
-                              transition: 'all 0.2s',
-                              transform: isSel ? 'scale(1.05)' : 'scale(1)'
-                            }}
-                          >
-                            <span style={{ fontSize: '0.85rem' }}>Port {portNum}</span>
-                            <span style={{ fontSize: '0.65rem', fontWeight: 700, opacity: 0.8 }}>
-                              {info.type}
-                            </span>
-                          </div>
-                        );
-                      })}
-                    </div>
+                    <button 
+                      className="login-btn" 
+                      style={{ 
+                        marginTop: '20px', 
+                        opacity: (getStatusKey(selectedStation.status) === 'maintenance' || getStatusKey(selectedStation.status) === 'full' || (selectedStation.connections > 1 && reservations?.some(r => r.station === selectedStation.name && (r.status === 'Confirmed' || r.status === 'Active') && r.connector.includes(`Port ${selectedPort}`)))) ? 0.5 : 1 
+                      }}
+                      disabled={getStatusKey(selectedStation.status) === 'maintenance' || getStatusKey(selectedStation.status) === 'full' || (selectedStation.connections > 1 && reservations?.some(r => r.station === selectedStation.name && (r.status === 'Confirmed' || r.status === 'Active') && r.connector.includes(`Port ${selectedPort}`)))}
+                      onClick={() => {
+                        const currentStatus = getStatusKey(selectedStation.status);
+                        if (!currentUser) {
+                          alert('Please log in to make a reservation.');
+                          navigate('/login');
+                          return;
+                        }
+                        if (currentStatus === 'maintenance') {
+                          alert('This station is currently under maintenance.');
+                          return;
+                        }
+                        if (currentStatus === 'full') {
+                          alert('This station is currently fully occupied. Please select another station.');
+                          return;
+                        }
+                        setShowPaymentModal(true);
+                      }}
+                    >
+                      {getStatusKey(selectedStation.status) === 'full' ? 'Station Full' : getStatusKey(selectedStation.status) === 'maintenance' ? 'Maintenance' : 'Reserve Now'}
+                    </button>
+                  </>
+                )}
+                
+                {currentUser?.type === 'Admin' && (
+                  <div style={{ marginTop: '24px', padding: '16px', background: 'rgba(0,0,0,0.02)', borderRadius: '12px', border: '1px dashed #ddd', textAlign: 'center' }}>
+                    <p style={{ margin: 0, fontSize: '0.85rem', color: '#888', fontWeight: 500 }}>
+                      Administrative View Only
+                    </p>
                   </div>
                 )}
               </div>
@@ -867,108 +993,6 @@ const MapExplorer = () => {
       </div>
 
       <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
-
-      {showPaymentModal && selectedStation && (
-        <PaymentModal 
-          station={selectedStation}
-          amount={targetAmount}
-          method={paymentMethod}
-          setMethod={setPaymentMethod}
-          onClose={() => setShowPaymentModal(false)}
-          onPay={handlePayNow}
-          isProcessing={isProcessing}
-          isSuccess={isSuccess}
-        />
-      )}
-    </div>
-  );
-};
-
-const PaymentModal = ({ station, amount, method, setMethod, onClose, onPay, isProcessing, isSuccess }) => {
-  return (
-    <div style={{
-      position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(4px)',
-      display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 9999, padding: '20px'
-    }}>
-      <div className="card" style={{ width: '100%', maxWidth: '400px', padding: 0, overflow: 'hidden', animation: 'modalSlide 0.3s ease-out' }}>
-        <div style={{ padding: '24px', background: 'var(--color-primary)', color: 'white' }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
-            <h3 style={{ margin: 0, color: 'white' }}>Payment Secure</h3>
-            <button onClick={onClose} style={{ background: 'rgba(255,255,255,0.2)', border: 'none', color: 'white', borderRadius: '50%', width: '30px', height: '30px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-              <X size={18} />
-            </button>
-          </div>
-          <p style={{ margin: 0, opacity: 0.9, fontSize: '0.85rem' }}>Reserve your slot at {station.name}</p>
-        </div>
-
-        <div style={{ padding: '24px' }}>
-          {isSuccess ? (
-            <div style={{ textAlign: 'center', padding: '20px 0' }}>
-              <div style={{ width: '64px', height: '64px', background: 'var(--color-success)', color: 'white', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 16px' }}>
-                <Check size={32} />
-              </div>
-              <h3 style={{ margin: '0 0 8px 0' }}>Payment Successful!</h3>
-              <p style={{ color: '#666', fontSize: '0.9rem' }}>Redirecting to your reservations...</p>
-            </div>
-          ) : (
-            <>
-              <div style={{ marginBottom: '24px', textAlign: 'center', padding: '15px', background: '#f8f9fa', borderRadius: '12px', border: '1px dashed #ddd' }}>
-                <div style={{ fontSize: '0.75rem', color: '#888', textTransform: 'uppercase', marginBottom: '4px' }}>Pre-authorization Hold</div>
-                <div style={{ fontSize: '1.8rem', fontWeight: 800, color: 'var(--color-primary)' }}>RM {amount.toFixed(2)}</div>
-                <div style={{ fontSize: '0.7rem', color: '#999', marginTop: '4px' }}>*Refundable if cancelled within 15 mins</div>
-              </div>
-
-              <div style={{ marginBottom: '24px' }}>
-                <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 700, color: '#666', textTransform: 'uppercase', marginBottom: '10px' }}>Select Method</label>
-                <div style={{ display: 'grid', gap: '10px' }}>
-                  <div 
-                    onClick={() => setMethod('card')}
-                    style={{ 
-                      padding: '14px', borderRadius: '12px', border: method === 'card' ? '2px solid var(--color-primary)' : '1px solid #eee',
-                      background: method === 'card' ? 'rgba(122,18,18,0.03)' : 'white', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '12px'
-                    }}
-                  >
-                    <CreditCard size={20} color={method === 'card' ? 'var(--color-primary)' : '#888'} />
-                    <span style={{ fontWeight: 600, fontSize: '0.9rem' }}>Credit / Debit Card</span>
-                  </div>
-                  <div 
-                    onClick={() => setMethod('fpx')}
-                    style={{ 
-                      padding: '14px', borderRadius: '12px', border: method === 'fpx' ? '2px solid var(--color-primary)' : '1px solid #eee',
-                      background: method === 'fpx' ? 'rgba(122,18,18,0.03)' : 'white', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '12px'
-                    }}
-                  >
-                    <Smartphone size={20} color={method === 'fpx' ? 'var(--color-primary)' : '#888'} />
-                    <span style={{ fontWeight: 600, fontSize: '0.9rem' }}>FPX Online Banking</span>
-                  </div>
-                </div>
-              </div>
-
-              <button 
-                onClick={onPay}
-                disabled={isProcessing}
-                className="login-btn"
-                style={{ width: '100%', padding: '16px', borderRadius: '12px', position: 'relative', overflow: 'hidden' }}
-              >
-                {isProcessing ? (
-                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '10px' }}>
-                    <div style={{ width: '18px', height: '18px', border: '3px solid rgba(255,255,255,0.3)', borderTop: '3px solid white', borderRadius: '50%', animation: 'spin 1s linear infinite' }}></div>
-                    Processing...
-                  </div>
-                ) : (
-                  `Pay RM ${amount.toFixed(2)}`
-                )}
-              </button>
-            </>
-          )}
-        </div>
-      </div>
-      <style>{`
-        @keyframes modalSlide {
-          from { transform: translateY(20px); opacity: 0; }
-          to { transform: translateY(0); opacity: 1; }
-        }
-      `}</style>
     </div>
   );
 };

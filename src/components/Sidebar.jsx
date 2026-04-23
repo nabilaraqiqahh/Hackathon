@@ -26,15 +26,17 @@ const Sidebar = () => {
     { title: 'Map Explorer', icon: <Map size={20} />, path: '/map' },
     { title: 'Stations Tracker', icon: <Zap size={20} />, path: '/stations' },
     { title: 'User Management', icon: <User size={20} />, path: '/users' },
-    { title: 'Feedback Reports', icon: <MessageSquare size={20} />, path: '/feedback-reports' },
     { title: 'Maintenance', icon: <Wrench size={20} />, path: '/maintenance' },
+    { title: 'Feedback Reports', icon: <MessageSquare size={20} />, path: '/feedback-reports' },
     { title: 'Analytics Report', icon: <LayoutDashboard size={20} />, path: '/report' },
   ];
 
   const driverLinks = [
     { title: 'Map Explorer', icon: <Map size={20} />, path: '/map' },
     { title: 'My Reservations', icon: <Calendar size={20} />, path: '/reservations' },
+    { title: 'My Vehicles', icon: <Car size={20} />, path: '/vehicles' },
     { title: 'Payment History', icon: <CreditCard size={20} />, path: '/payment' },
+    { title: 'Send Feedback', icon: <MessageSquare size={20} />, path: '/feedback' },
   ];
 
   const links = isAdmin ? adminLinks : driverLinks;
@@ -75,7 +77,7 @@ const Sidebar = () => {
             zIndex: 100
           }}>
             <div style={{ padding: '16px 16px 8px', fontSize: '0.75rem', fontWeight: 700, color: 'var(--color-text-muted)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Account</div>
-            <div 
+            <div
               style={{ padding: '12px 16px', display: 'flex', alignItems: 'center', gap: '12px', cursor: 'pointer', transition: 'background 0.2s', fontSize: '0.9rem', fontWeight: 500 }}
               onClick={() => handleMenuNavigate('/profile')}
               onMouseOver={e => e.currentTarget.style.background = 'rgba(0,0,0,0.02)'}
@@ -88,7 +90,7 @@ const Sidebar = () => {
         )}
 
         <div style={{ flexDirection: 'column', alignItems: 'stretch', gap: '16px', display: 'flex' }}>
-          <div 
+          <div
             style={{ display: 'flex', alignItems: 'center', gap: '12px', padding: '8px', borderRadius: '8px', cursor: 'pointer', transition: 'background-color 0.2s', background: isMenuOpen ? 'rgba(0,0,0,0.05)' : 'transparent', margin: '-8px' }}
             onClick={() => setIsMenuOpen(!isMenuOpen)}
           >
@@ -99,17 +101,17 @@ const Sidebar = () => {
             </div>
             <ChevronUp size={20} style={{ color: 'var(--color-text-muted)', transform: isMenuOpen ? 'rotate(180deg)' : 'none', transition: 'transform 0.3s' }} />
           </div>
-          
-          <button onClick={logout} style={{ 
-            background: 'rgba(211, 47, 47, 0.1)', 
-            border: 'none', 
+
+          <button onClick={logout} style={{
+            background: 'rgba(211, 47, 47, 0.1)',
+            border: 'none',
             borderRadius: '8px',
-            color: 'var(--color-danger)', 
-            display: 'flex', 
-            alignItems: 'center', 
+            color: 'var(--color-danger)',
+            display: 'flex',
+            alignItems: 'center',
             justifyContent: 'center',
-            gap: '8px', 
-            padding: '10px', 
+            gap: '8px',
+            padding: '10px',
             width: '100%',
             cursor: 'pointer',
             fontWeight: 600,

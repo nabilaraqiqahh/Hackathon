@@ -3,7 +3,7 @@
 -- https://www.phpmyadmin.net/
 --
 -- Host: 127.0.0.1
--- Generation Time: Apr 20, 2026 at 04:19 PM
+-- Generation Time: Apr 20, 2026 at 10:39 PM
 -- Server version: 10.4.32-MariaDB
 -- PHP Version: 8.2.12
 
@@ -38,12 +38,8 @@ CREATE TABLE `car_brands` (
 
 INSERT INTO `car_brands` (`brand_id`, `brand_name`) VALUES
 (3, 'BYD'),
-(7, 'Chery'),
-(6, 'GWM'),
-(5, 'MG'),
-(2, 'Perodua'),
 (1, 'Proton'),
-(4, 'Tesla');
+(2, 'Tesla');
 
 -- --------------------------------------------------------
 
@@ -62,35 +58,9 @@ CREATE TABLE `car_models` (
 --
 
 INSERT INTO `car_models` (`model_id`, `brand_id`, `model_name`) VALUES
-(1, 1, 'e.MAS 5'),
-(2, 1, 'e.MAS 7'),
-(3, 2, 'QV-E'),
-(4, 2, 'EM-O'),
-(5, 3, 'Atto 3'),
-(6, 3, 'Dolphin'),
-(7, 3, 'Seal'),
-(8, 4, 'Model 3'),
-(9, 4, 'Model Y'),
-(10, 5, 'MG4 EV'),
-(11, 5, 'MG S5'),
-(12, 6, 'Ora Good Cat'),
-(13, 6, 'Ora 07'),
-(14, 7, 'Omoda E5');
-
--- --------------------------------------------------------
-
---
--- Table structure for table `feedbacks`
---
-
-CREATE TABLE `feedbacks` (
-  `feedback_id` int(11) NOT NULL,
-  `user_id` int(11) DEFAULT NULL,
-  `feedback_type` enum('general','issue') NOT NULL DEFAULT 'general',
-  `station_name` varchar(100) DEFAULT NULL,
-  `message` text NOT NULL,
-  `submitted_at` timestamp NOT NULL DEFAULT current_timestamp()
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+(1, 1, 'e.MAS 7'),
+(2, 2, 'Model 3'),
+(3, 3, 'Seal');
 
 -- --------------------------------------------------------
 
@@ -100,7 +70,7 @@ CREATE TABLE `feedbacks` (
 
 CREATE TABLE `payments` (
   `payment_id` int(11) NOT NULL,
-  `transaction_id` varchar(20) NOT NULL,
+  `transaction_id` varchar(50) NOT NULL,
   `user_id` int(11) DEFAULT NULL,
   `amount` decimal(10,2) NOT NULL,
   `payment_method` varchar(50) DEFAULT NULL,
@@ -109,6 +79,19 @@ CREATE TABLE `payments` (
   `payment_date` date NOT NULL,
   `status` enum('Success','Pending','Failed') DEFAULT 'Success'
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+--
+-- Dumping data for table `payments`
+--
+
+INSERT INTO `payments` (`payment_id`, `transaction_id`, `user_id`, `amount`, `payment_method`, `energy`, `receipt_no`, `payment_date`, `status`) VALUES
+(1, 'PAY-06231346-69', 2, 10.00, 'Visa •••• 4242', NULL, 'RCP-6130', '2026-04-20', 'Success'),
+(2, 'PAY-12883819-99', 2, 0.00, 'Visa •••• 4242', '12.8 kWh', 'RCP-5234', '2026-04-20', 'Success'),
+(3, 'PAY-14991535-78', 2, 0.00, 'Visa •••• 4242', '2.0 kWh', 'RCP-7584', '2026-04-20', 'Success'),
+(4, 'PAY-15410245-55', 2, 0.00, 'Visa •••• 4242', '6.0 kWh', 'RCP-8847', '2026-04-20', 'Success'),
+(5, 'PAY-15418493-9', 2, 0.00, 'Visa •••• 4242', '6.0 kWh', 'RCP-9590', '2026-04-20', 'Success'),
+(6, 'PAY-15743131-61', 2, 0.00, 'Visa •••• 4242', '38.0 kWh', 'RCP-5723', '2026-04-20', 'Success'),
+(7, 'PAY-16521408-68', 2, 0.00, 'Visa •••• 4242', '38.0 kWh', 'RCP-6373', '2026-04-20', 'Success');
 
 -- --------------------------------------------------------
 
@@ -127,8 +110,29 @@ CREATE TABLE `reservations` (
   `duration` varchar(50) DEFAULT NULL,
   `connector` varchar(100) DEFAULT NULL,
   `power` varchar(50) DEFAULT NULL,
-  `status` enum('Confirmed','Active','Completed','Cancelled') DEFAULT 'Confirmed'
+  `status` enum('Confirmed','Active','Completed','Cancelled') DEFAULT 'Confirmed',
+  `target_amount` decimal(10,2) DEFAULT 0.00,
+  `actual_cost` decimal(10,2) DEFAULT 0.00,
+  `actual_duration` varchar(50) DEFAULT NULL,
+  `actual_energy` varchar(50) DEFAULT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+--
+-- Dumping data for table `reservations`
+--
+
+INSERT INTO `reservations` (`reservation_id`, `user_id`, `station_id`, `port_id`, `station_name`, `reservation_date`, `reservation_time`, `duration`, `connector`, `power`, `status`, `target_amount`, `actual_cost`, `actual_duration`, `actual_energy`) VALUES
+(1, 2, 474393, NULL, 'Gentari | Petronas Ayer Keroh 3 (110kW DC)', '2026-04-20', '01:30:00', NULL, 'DC Fast', '110kW', 'Completed', 0.00, 0.00, NULL, NULL),
+(2, 2, 474273, 1, 'Charge+ | Amverton Heritage Resort (120kW DC & 7kW AC)', '2026-04-20', '03:54:00', NULL, 'Port 1 (DC Fast)', '120kW', 'Completed', 0.00, 0.00, NULL, NULL),
+(3, 2, 474273, 2, 'Charge+ | Amverton Heritage Resort (120kW DC & 7kW AC)', '2026-04-20', '03:55:00', NULL, 'Port 2 (AC Standard)', '120kW', 'Completed', 0.00, 0.00, NULL, NULL),
+(4, 2, 474273, 1, 'Charge+ | Amverton Heritage Resort (120kW DC & 7kW AC)', '2026-04-20', '03:56:00', NULL, 'Port 1 (DC Fast)', '120kW', 'Completed', 0.00, 0.00, NULL, NULL),
+(5, 2, 459494, 3, 'MYDIN MITC AYER KEROH (Shopping Mall)', '2026-04-20', '04:08:00', NULL, 'Port 1 (DC Fast)', '120kW', 'Completed', 0.00, 0.00, NULL, NULL),
+(6, 2, 474274, 5, 'SQ Spirit', '2026-04-20', '04:21:00', NULL, 'Port 1 (DC Fast)', '120kW', 'Completed', 0.00, 0.00, NULL, NULL),
+(7, 2, 459494, 4, 'MYDIN MITC AYER KEROH (Shopping Mall)', '2026-04-20', '04:29:00', NULL, 'Port 2 (AC Standard)', '11kW', 'Confirmed', 0.00, 0.00, NULL, NULL),
+(8, 2, 193503, 7, 'Tahap Puncak Sdn Bhd', '2026-04-20', '04:29:00', NULL, 'Port 1 (DC Fast)', '120kW', 'Confirmed', 0.00, 0.00, NULL, NULL),
+(9, 2, 474275, 10, 'AEON Melaka Shopping Centre', '2026-04-20', '04:29:00', NULL, 'Port 1 (DC Fast)', '120kW', 'Confirmed', 0.00, 0.00, NULL, NULL),
+(10, 2, 474278, NULL, 'Pos Malaysia', '2026-04-20', '04:30:00', NULL, 'AC Standard', '11kW', 'Confirmed', 0.00, 0.00, NULL, NULL),
+(11, 2, 474277, NULL, 'Proton eMAS Melaka NHL Auto Tech', '2026-04-20', '04:30:00', NULL, 'AC Standard', '11kW', 'Confirmed', 0.00, 0.00, NULL, NULL);
 
 -- --------------------------------------------------------
 
@@ -156,7 +160,14 @@ CREATE TABLE `stations` (
 --
 
 INSERT INTO `stations` (`station_id`, `station_name`, `address`, `operator_name`, `charger_type`, `district`, `total_bays`, `connectors`, `available_bays`, `status`, `price_per_kwh`, `idle_fee`) VALUES
-(474393, 'Gentari | Petronas Ayer Keroh 3 (110kW DC)', '2854, Jalan Tun Abdul Razak', 'Unknown Operator', 'DC Fast', 'Melaka Tengah', 1, 1, 1, 'Available', 1.20, 0.00);
+(193503, 'Tahap Puncak Sdn Bhd', '19, Jalan PPBK, Pusat Perniagaan Bukit Katil, ', 'Unknown Operator', 'AC Standard', 'Melaka Tengah', 3, 3, 3, 'Available', 1.20, 0.00),
+(459494, 'MYDIN MITC AYER KEROH (Shopping Mall)', 'Mydin MITC', 'Unknown Operator', 'AC Standard', 'Melaka Tengah', 2, 2, 2, 'Available', 1.20, 0.00),
+(474273, 'Charge+ | Amverton Heritage Resort (120kW DC & 7kW AC)', 'Amverton Heritage Resort', 'Unknown Operator', 'DC Fast', 'Melaka Tengah', 2, 2, 2, 'Available', 1.20, 0.00),
+(474274, 'SQ Spirit', 'Jalan Eco 1', 'Unknown Operator', 'DC Fast', 'Melaka Tengah', 2, 2, 2, 'Available', 1.20, 0.00),
+(474275, 'AEON Melaka Shopping Centre', 'Jalan Tun Abdul Razak', 'Unknown Operator', 'DC Fast', 'Melaka Tengah', 2, 2, 2, 'Available', 1.20, 0.00),
+(474277, 'Proton eMAS Melaka NHL Auto Tech', 'Jalan IKS MJ 1', 'Unknown Operator', 'AC Standard', 'Melaka Tengah', 1, 1, 1, 'Available', 1.20, 0.00),
+(474278, 'Pos Malaysia', 'Pejabat Pos Besar Melaka', 'Unknown Operator', 'AC Standard', 'Melaka Tengah', 1, 1, 1, 'Available', 1.20, 0.00),
+(474393, 'Gentari | Petronas Ayer Keroh 3 (110kW DC)', NULL, 'Unknown Operator', 'AC Standard(22kW+)', 'Melaka Tengah', 1, 1, 1, 'Available', 1.20, 0.00);
 
 -- --------------------------------------------------------
 
@@ -173,6 +184,25 @@ CREATE TABLE `station_ports` (
   `status` enum('Available','Occupied','Maintenance') DEFAULT 'Available'
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
+--
+-- Dumping data for table `station_ports`
+--
+
+INSERT INTO `station_ports` (`port_id`, `station_id`, `port_name`, `charger_type`, `price_per_kwh`, `status`) VALUES
+(1, 474273, 'Port 1', 'DC Fast', 1.20, 'Available'),
+(2, 474273, 'Port 2', 'AC Standard', 0.90, 'Available'),
+(3, 459494, 'Port 1', 'DC Fast', 1.20, 'Available'),
+(4, 459494, 'Port 2', 'AC Standard', 0.90, 'Available'),
+(5, 474274, 'Port 1', 'DC Fast', 1.20, 'Available'),
+(6, 474274, 'Port 2', 'AC Standard', 0.90, 'Available'),
+(7, 193503, 'Port 1', 'DC Fast', 1.20, 'Available'),
+(8, 193503, 'Port 2', 'AC Standard', 0.90, 'Available'),
+(9, 193503, 'Port 3', 'DC Fast', 1.20, 'Available'),
+(10, 474275, 'Port 1', 'DC Fast', 1.20, 'Available'),
+(11, 474275, 'Port 2', 'AC Standard', 0.90, 'Available'),
+(12, 474278, 'Port 1', 'AC Standard', 0.90, 'Available'),
+(13, 474277, 'Port 1', 'AC Standard', 0.90, 'Available');
+
 -- --------------------------------------------------------
 
 --
@@ -183,6 +213,7 @@ CREATE TABLE `usage_logs` (
   `log_id` int(11) NOT NULL,
   `user_id` int(11) DEFAULT NULL,
   `station_id` bigint(20) DEFAULT NULL,
+  `port_id` int(11) DEFAULT NULL,
   `session_date` date NOT NULL,
   `energy_consumed` float DEFAULT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
@@ -208,8 +239,7 @@ CREATE TABLE `users` (
 
 INSERT INTO `users` (`user_id`, `full_name`, `email`, `phone_no`, `password`, `user_type`) VALUES
 (1, 'Nabil Husni', 'nabil@melaka.gov.my', '0123456789', '123', 'Admin'),
-(2, 'Ahmad Rafiq', 'rafiq@gmail.com', '0119876543', '123', 'Driver'),
-(3, 'Siti Aminah', 'siti@outlook.com', '0172233445', '123', 'Driver');
+(2, 'Ahmad Rafiq', 'rafiq@gmail.com', '0119876543', '123', 'Driver');
 
 -- --------------------------------------------------------
 
@@ -229,9 +259,7 @@ CREATE TABLE `vehicles` (
 --
 
 INSERT INTO `vehicles` (`vehicle_id`, `user_id`, `plat_no`, `car_model`) VALUES
-(1, 1, 'MCU 1234', 'BYD Seal'),
-(2, 2, 'VFD 5678', 'Tesla Model 3'),
-(3, 3, 'JQQ 9999', 'Ora Good Cat');
+(1, 2, 'DCR 5488', 'Proton eMas');
 
 --
 -- Indexes for dumped tables
@@ -249,14 +277,7 @@ ALTER TABLE `car_brands`
 --
 ALTER TABLE `car_models`
   ADD PRIMARY KEY (`model_id`),
-  ADD KEY `brand_id` (`brand_id`);
-
---
--- Indexes for table `feedbacks`
---
-ALTER TABLE `feedbacks`
-  ADD PRIMARY KEY (`feedback_id`),
-  ADD KEY `user_id` (`user_id`);
+  ADD KEY `models_brand_fk` (`brand_id`);
 
 --
 -- Indexes for table `payments`
@@ -264,16 +285,16 @@ ALTER TABLE `feedbacks`
 ALTER TABLE `payments`
   ADD PRIMARY KEY (`payment_id`),
   ADD UNIQUE KEY `transaction_id` (`transaction_id`),
-  ADD KEY `user_id` (`user_id`);
+  ADD KEY `pay_user_fk` (`user_id`);
 
 --
 -- Indexes for table `reservations`
 --
 ALTER TABLE `reservations`
   ADD PRIMARY KEY (`reservation_id`),
-  ADD KEY `user_id` (`user_id`),
-  ADD KEY `station_id` (`station_id`),
-  ADD KEY `reservations_ibfk_3` (`port_id`);
+  ADD KEY `res_user_fk` (`user_id`),
+  ADD KEY `res_station_fk` (`station_id`),
+  ADD KEY `res_port_fk` (`port_id`);
 
 --
 -- Indexes for table `stations`
@@ -286,15 +307,16 @@ ALTER TABLE `stations`
 --
 ALTER TABLE `station_ports`
   ADD PRIMARY KEY (`port_id`),
-  ADD KEY `station_id` (`station_id`);
+  ADD UNIQUE KEY `unique_port_per_station` (`station_id`,`port_name`);
 
 --
 -- Indexes for table `usage_logs`
 --
 ALTER TABLE `usage_logs`
   ADD PRIMARY KEY (`log_id`),
-  ADD KEY `user_id` (`user_id`),
-  ADD KEY `station_id` (`station_id`);
+  ADD KEY `log_user_fk` (`user_id`),
+  ADD KEY `log_station_fk` (`station_id`),
+  ADD KEY `log_port_fk` (`port_id`);
 
 --
 -- Indexes for table `users`
@@ -308,7 +330,7 @@ ALTER TABLE `users`
 --
 ALTER TABLE `vehicles`
   ADD PRIMARY KEY (`vehicle_id`),
-  ADD KEY `user_id` (`user_id`);
+  ADD KEY `veh_user_fk` (`user_id`);
 
 --
 -- AUTO_INCREMENT for dumped tables
@@ -318,37 +340,31 @@ ALTER TABLE `vehicles`
 -- AUTO_INCREMENT for table `car_brands`
 --
 ALTER TABLE `car_brands`
-  MODIFY `brand_id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=8;
+  MODIFY `brand_id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=4;
 
 --
 -- AUTO_INCREMENT for table `car_models`
 --
 ALTER TABLE `car_models`
-  MODIFY `model_id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=15;
-
---
--- AUTO_INCREMENT for table `feedbacks`
---
-ALTER TABLE `feedbacks`
-  MODIFY `feedback_id` int(11) NOT NULL AUTO_INCREMENT;
+  MODIFY `model_id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=4;
 
 --
 -- AUTO_INCREMENT for table `payments`
 --
 ALTER TABLE `payments`
-  MODIFY `payment_id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=7;
+  MODIFY `payment_id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=8;
 
 --
 -- AUTO_INCREMENT for table `reservations`
 --
 ALTER TABLE `reservations`
-  MODIFY `reservation_id` int(11) NOT NULL AUTO_INCREMENT;
+  MODIFY `reservation_id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=12;
 
 --
 -- AUTO_INCREMENT for table `station_ports`
 --
 ALTER TABLE `station_ports`
-  MODIFY `port_id` int(11) NOT NULL AUTO_INCREMENT;
+  MODIFY `port_id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=14;
 
 --
 -- AUTO_INCREMENT for table `usage_logs`
@@ -360,13 +376,13 @@ ALTER TABLE `usage_logs`
 -- AUTO_INCREMENT for table `users`
 --
 ALTER TABLE `users`
-  MODIFY `user_id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=4;
+  MODIFY `user_id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=3;
 
 --
 -- AUTO_INCREMENT for table `vehicles`
 --
 ALTER TABLE `vehicles`
-  MODIFY `vehicle_id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=4;
+  MODIFY `vehicle_id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=2;
 
 --
 -- Constraints for dumped tables
@@ -376,45 +392,41 @@ ALTER TABLE `vehicles`
 -- Constraints for table `car_models`
 --
 ALTER TABLE `car_models`
-  ADD CONSTRAINT `car_models_ibfk_1` FOREIGN KEY (`brand_id`) REFERENCES `car_brands` (`brand_id`) ON DELETE CASCADE;
-
---
--- Constraints for table `feedbacks`
---
-ALTER TABLE `feedbacks`
-  ADD CONSTRAINT `feedbacks_ibfk_1` FOREIGN KEY (`user_id`) REFERENCES `users` (`user_id`) ON DELETE CASCADE;
+  ADD CONSTRAINT `models_brand_fk` FOREIGN KEY (`brand_id`) REFERENCES `car_brands` (`brand_id`) ON DELETE CASCADE;
 
 --
 -- Constraints for table `payments`
 --
 ALTER TABLE `payments`
-  ADD CONSTRAINT `payments_ibfk_1` FOREIGN KEY (`user_id`) REFERENCES `users` (`user_id`) ON DELETE CASCADE;
+  ADD CONSTRAINT `pay_user_fk` FOREIGN KEY (`user_id`) REFERENCES `users` (`user_id`) ON DELETE CASCADE;
 
 --
 -- Constraints for table `reservations`
 --
 ALTER TABLE `reservations`
-  ADD CONSTRAINT `reservations_ibfk_1` FOREIGN KEY (`user_id`) REFERENCES `users` (`user_id`) ON DELETE CASCADE,
-  ADD CONSTRAINT `reservations_ibfk_3` FOREIGN KEY (`port_id`) REFERENCES `station_ports` (`port_id`) ON DELETE SET NULL;
+  ADD CONSTRAINT `res_port_fk` FOREIGN KEY (`port_id`) REFERENCES `station_ports` (`port_id`) ON DELETE SET NULL,
+  ADD CONSTRAINT `res_station_fk` FOREIGN KEY (`station_id`) REFERENCES `stations` (`station_id`) ON DELETE CASCADE,
+  ADD CONSTRAINT `res_user_fk` FOREIGN KEY (`user_id`) REFERENCES `users` (`user_id`) ON DELETE CASCADE;
 
 --
 -- Constraints for table `station_ports`
 --
 ALTER TABLE `station_ports`
-  ADD CONSTRAINT `station_ports_ibfk_1` FOREIGN KEY (`station_id`) REFERENCES `stations` (`station_id`) ON DELETE CASCADE;
+  ADD CONSTRAINT `ports_station_fk` FOREIGN KEY (`station_id`) REFERENCES `stations` (`station_id`) ON DELETE CASCADE;
 
 --
 -- Constraints for table `usage_logs`
 --
 ALTER TABLE `usage_logs`
-  ADD CONSTRAINT `usage_logs_ibfk_1` FOREIGN KEY (`user_id`) REFERENCES `users` (`user_id`),
-  ADD CONSTRAINT `usage_logs_ibfk_2` FOREIGN KEY (`station_id`) REFERENCES `stations` (`station_id`);
+  ADD CONSTRAINT `log_port_fk` FOREIGN KEY (`port_id`) REFERENCES `station_ports` (`port_id`),
+  ADD CONSTRAINT `log_station_fk` FOREIGN KEY (`station_id`) REFERENCES `stations` (`station_id`),
+  ADD CONSTRAINT `log_user_fk` FOREIGN KEY (`user_id`) REFERENCES `users` (`user_id`);
 
 --
 -- Constraints for table `vehicles`
 --
 ALTER TABLE `vehicles`
-  ADD CONSTRAINT `vehicles_ibfk_1` FOREIGN KEY (`user_id`) REFERENCES `users` (`user_id`) ON DELETE CASCADE;
+  ADD CONSTRAINT `veh_user_fk` FOREIGN KEY (`user_id`) REFERENCES `users` (`user_id`) ON DELETE CASCADE;
 COMMIT;
 
 /*!40101 SET CHARACTER_SET_CLIENT=@OLD_CHARACTER_SET_CLIENT */;

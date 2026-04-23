@@ -1,9 +1,9 @@
 import React, { useState } from 'react';
-import { Send, MessageSquare, AlertTriangle, CheckCircle } from 'lucide-react';
 import { useData } from '../context/DataContext';
+import { Send, MessageSquare, AlertTriangle, CheckCircle } from 'lucide-react';
 
 const SendFeedback = () => {
-  const { addFeedback } = useData();
+  const { addFeedback, currentUser, stations } = useData();
   const [isSubmitted, setIsSubmitted] = useState(false);
   const [formData, setFormData] = useState({
     type: 'general',
@@ -13,13 +13,14 @@ const SendFeedback = () => {
 
   const handleSubmit = (e) => {
     e.preventDefault();
-    if (formData.type === 'issue' && !formData.station) {
-      alert("Please select a station for the issue.");
-      return;
-    }
     
-    addFeedback(formData);
-    
+    addFeedback({
+      user_id: currentUser?.id || currentUser?.user_id || 1, // Fallback to 1 for guest or dev
+      feedback_type: formData.type,
+      station_name: formData.station || 'General',
+      message: formData.message
+    });
+
     setIsSubmitted(true);
     setTimeout(() => {
       setIsSubmitted(false);
@@ -76,10 +77,10 @@ const SendFeedback = () => {
                 <div style={{ marginBottom: '24px' }}>
                   <label style={{ display: 'block', marginBottom: '8px', fontWeight: 600 }}>Which station?</label>
                   <select className="styled-input" value={formData.station} onChange={e => setFormData({...formData, station: e.target.value})} required>
-                    <option value="">Select a district/station</option>
-                    <option value="Melaka Tengah">Melaka Tengah</option>
-                    <option value="Alor Gajah">Alor Gajah</option>
-                    <option value="Jasin">Jasin</option>
+                    <option value="">Select a station</option>
+                    {(stations || []).map(stn => (
+                      <option key={stn.id} value={stn.name}>{stn.name}</option>
+                    ))}
                   </select>
                 </div>
               )}

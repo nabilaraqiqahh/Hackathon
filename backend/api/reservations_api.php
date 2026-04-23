@@ -47,6 +47,7 @@ switch ($method) {
             $status   = $input['status'] ?? 'Confirmed';
             $user_id  = is_numeric($input['user_id']) ? (int)$input['user_id'] : 2; // Default to Rafiq if dummy ID
             $connector = $input['connector'] ?? 'Port 1';
+            $target_amount = $input['targetAmount'] ?? 0;
 
             try {
                 // 2. JIT SYNC: Ensure Station exists (Prevent Foreign Key Error)
@@ -59,37 +60,55 @@ switch ($method) {
                     $input['district'] ?? 'Melaka Tengah'
                 ]);
 
-                // 3. JIT SYNC: Ensure Port exists (Clean Approach)
+                // 3. JIT SYNC: Ensure Port exists (Robust Lookup)
                 $port_id = null;
+                $portSearchName = null;
                 if (preg_match('/Port \d+/', $connector, $matches)) {
-                    $portName = $matches[0];
-                    $portCheck = executeQuery("SELECT port_id FROM station_ports WHERE station_id = ? AND port_name = ?", [$input['station_id'], $portName]);
-                    
-                    if (empty($portCheck)) {
-                        $port_id = executeInsert("INSERT INTO station_ports (station_id, port_name, charger_type, price_per_kwh) VALUES (?, ?, ?, ?)", 
-                                                 [$input['station_id'], $portName, $input['power'] ?? 'DC Fast', 1.20]);
-                    } else {
-                        $port_id = $portCheck[0]['port_id'];
-                    }
+                    $portSearchName = $matches[0];
+                } else {
+                    // Fallback: If no port number in string, check if it's the only port or use "Port 1"
+                    $portSearchName = 'Port 1';
                 }
 
-                // 4. INSERT FINAL RESERVATION - Updated to use correct variables
-                $query = "INSERT INTO reservations (user_id, station_id, port_id, station_name, reservation_date, reservation_time, status, duration, connector, power) 
-                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
+                $portCheck = executeQuery("SELECT port_id FROM station_ports WHERE station_id = ? AND port_name = ?", [$input['station_id'], $portSearchName]);
+                
+                if (empty($portCheck)) {
+                    // If still not found, just take the first available port for this station
+                    $anyPort = executeQuery("SELECT port_id FROM station_ports WHERE station_id = ? LIMIT 1", [$input['station_id']]);
+                    if (!empty($anyPort)) {
+                        $port_id = $anyPort[0]['port_id'];
+                    } else {
+                        // Truly missing? Create it.
+                        $port_id = executeInsert("INSERT INTO station_ports (station_id, port_name, charger_type, price_per_kwh, status) VALUES (?, ?, ?, ?, 'Available')", 
+                                                [$input['station_id'], $portSearchName, $input['power'] ?? 'DC Fast', 1.20]);
+                    }
+                } else {
+                    $port_id = $portCheck[0]['port_id'];
+                }
+
+                // 4. INSERT FINAL RESERVATION
+                $query = "INSERT INTO reservations (user_id, station_id, port_id, station_name, reservation_date, reservation_time, status, duration, connector, power, target_amount) 
+                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
 
                 $new_res_id = executeInsert($query, [
                     $user_id, 
                     $input['station_id'], 
                     $port_id, 
                     $input['station_name'] ?? 'Unknown Station',
-                    $res_date, // Use the variable created at the top of the POST case
-                    $res_time, // Use the variable created at the top of the POST case
+                    $res_date,
+                    $res_time,
                     $status, 
                     $input['duration'] ?? null, 
                     $connector, 
-                    $input['power'] ?? null
+                    $input['power'] ?? null,
+                    $target_amount
                 ]);
                 if ($new_res_id) {
+                    // 5. UPDATE PORT STATUS TO OCCUPIED
+                    if ($port_id) {
+                        executeAction("UPDATE station_ports SET status = 'Occupied' WHERE port_id = ?", [$port_id]);
+                    }
+
                     echo json_encode([
                         "success" => true, 
                         "message" => "Reservation created successfully", 
@@ -98,7 +117,7 @@ switch ($method) {
                 } else {
                     echo json_encode([
                         "success" => false, 
-                        "message" => "Failed to insert reservation into database"
+                        "message" => "Failed to insert reservation"
                     ]);
                 }
             } catch (Exception $e) {
@@ -115,7 +134,27 @@ switch ($method) {
     case 'PUT':
         $input = json_decode(file_get_contents("php://input"), true);
         if (isset($input['reservation_id'], $input['status'])) {
-            $success = executeAction("UPDATE reservations SET status = ? WHERE reservation_id = ?", [$input['status'], $input['reservation_id']]);
+            $actual_cost = $input['actualCost'] ?? null;
+            $actual_duration = $input['actualDuration'] ?? null;
+            $actual_energy = $input['actualEnergy'] ?? null;
+            
+            $query = "UPDATE reservations SET status = ?, actual_cost = COALESCE(?, actual_cost), actual_duration = COALESCE(?, actual_duration), actual_energy = COALESCE(?, actual_energy) WHERE reservation_id = ?";
+            $success = executeAction($query, [
+                $input['status'],
+                $actual_cost,
+                $actual_duration,
+                $actual_energy,
+                $input['reservation_id']
+            ]);
+
+            // 2. IF COMPLETED, RELEASE THE PORT
+            if ($success && $input['status'] === 'Completed') {
+                $res = executeQuery("SELECT port_id FROM reservations WHERE reservation_id = ?", [$input['reservation_id']]);
+                if (!empty($res) && $res[0]['port_id']) {
+                    executeAction("UPDATE station_ports SET status = 'Available' WHERE port_id = ?", [$res[0]['port_id']]);
+                }
+            }
+
             echo json_encode(["success" => $success]);
         }
         break;

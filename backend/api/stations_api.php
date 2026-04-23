@@ -12,12 +12,41 @@ $method = $_SERVER['REQUEST_METHOD'];
 
 switch ($method) {
     case 'GET':
-        // Fetch specific station or all stations
+        // Fetch specific station or all stations, joining with ports to determine status
+        $query = "SELECT s.* FROM stations s";
         if (isset($_GET['id'])) {
             $id = $_GET['id'];
-            $data = executeQuery("SELECT * FROM stations WHERE station_id = ?", [$id]);
+            $data = executeQuery("$query WHERE s.station_id = ?", [$id]);
         } else {
-            $data = executeQuery("SELECT * FROM stations");
+            $data = executeQuery($query);
+        }
+
+        // 1. ENSURE PORTS EXIST AND ATTACH TO DATA
+        foreach ($data as &$row) {
+            $sid = $row['station_id'];
+            
+            // Check if ports exist
+            $ports = executeQuery("SELECT * FROM station_ports WHERE station_id = ?", [$sid]);
+            
+            if (empty($ports)) {
+                // JIT insert at least one port based on station info
+                $portType = (stripos($row['charger_type'], 'DC') !== false) ? 'DC Fast' : 'AC Standard';
+                $new_id = executeInsert("INSERT INTO station_ports (station_id, port_name, charger_type, price_per_kwh, status) VALUES (?, 'Port 1', ?, ?, 'Available')", 
+                               [$sid, $portType, $row['price_per_kwh']]);
+                $ports = executeQuery("SELECT * FROM station_ports WHERE port_id = ?", [$new_id]);
+            }
+
+            $row['ports'] = $ports;
+
+            // Now calculate derived status from port table
+            $portStatus = executeQuery("SELECT 
+                                        CASE 
+                                            WHEN EXISTS (SELECT 1 FROM station_ports WHERE station_id = ? AND status = 'Available') THEN 'Available'
+                                            WHEN NOT EXISTS (SELECT 1 FROM station_ports WHERE station_id = ? AND status != 'Maintenance') THEN 'Maintenance'
+                                            ELSE 'Full'
+                                        END as s", [$sid, $sid])[0]['s'];
+            
+            $row['status'] = $row['derived_status'] = $portStatus;
         }
         echo json_encode(["success" => true, "data" => $data]);
         break;
@@ -36,17 +65,20 @@ switch ($method) {
             $price_per_kwh = $input['price_per_kwh'] ?? 1.20;
             $idle_fee = $input['idle_fee'] ?? 0.00;
             
-            $query = "INSERT INTO stations (station_id, station_name, address, operator_name, charger_type, district, total_bays, connectors, available_bays, status, price_per_kwh, idle_fee) 
-                      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            $query = "INSERT INTO stations (station_id, station_name, address, operator_name, charger_type, district, total_bays, connectors, available_bays, status, price_per_kwh, idle_fee, latitude, longitude) 
+                      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                       ON DUPLICATE KEY UPDATE 
                       station_name = VALUES(station_name),
                       status = VALUES(status),
-                      available_bays = VALUES(available_bays)";
+                      available_bays = VALUES(available_bays),
+                      latitude = VALUES(latitude),
+                      longitude = VALUES(longitude)";
                       
             $success = executeAction($query, [
                 $input['station_id'], $input['station_name'], $address, $operator_name, 
                 $charger_type, $input['district'], $total_bays, $connectors, 
-                $available_bays, $status, $price_per_kwh, $idle_fee
+                $available_bays, $status, $price_per_kwh, $idle_fee,
+                $input['latitude'] ?? null, $input['longitude'] ?? null
             ]);
             
             if ($success) {
@@ -94,12 +126,15 @@ switch ($method) {
         break;
 
     case 'PUT':
-        // Update station bays/status
+        // Update station bays/status OR individual ports
         $input = json_decode(file_get_contents("php://input"), true);
-        if (isset($input['station_id'], $input['available_bays'], $input['status'])) {
+        
+        if (isset($input['port_id'], $input['status'])) {
+            $success = executeAction("UPDATE station_ports SET status = ? WHERE port_id = ?", [$input['status'], $input['port_id']]);
+            echo json_encode(["success" => $success, "message" => $success ? "Port updated" : "Failed to update port"]);
+        } else if (isset($input['station_id'], $input['available_bays'], $input['status'])) {
             $query = "UPDATE stations SET available_bays = ?, status = ? WHERE station_id = ?";
             $success = executeAction($query, [$input['available_bays'], $input['status'], $input['station_id']]);
-            
             echo json_encode(["success" => $success, "message" => $success ? "Station updated" : "Failed to update station"]);
         } else {
             echo json_encode(["success" => false, "message" => "Missing required fields"]);

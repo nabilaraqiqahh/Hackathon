@@ -44,7 +44,7 @@ export const DataProvider = ({ children }) => {
   ]);
 
   const [feedbacks, setFeedbacks] = useState([
-    { id: 'FB-001', authorName: 'Ahmad Rafiq', station: 'Alor Gajah', district: 'Alor Gajah', type: 'issue', message: 'Charger 1 is completely dead, screen not turning on.', status: 'Pending', createdAt: '2026-04-19' },
+    { id: 'FB-001', authorName: 'Ahmad Rafiq', station: 'Jalan Tun Perak', district: 'Jalan Tun Perak', type: 'issue', message: 'Charger 1 is completely dead, screen not turning on.', status: 'Pending', createdAt: '2026-04-19' },
   ]);
 
   const [maintenanceTasks, setMaintenanceTasks] = useState([
@@ -54,11 +54,12 @@ export const DataProvider = ({ children }) => {
   // Fetch all initial data
   const fetchData = async () => {
     try {
-      const [uRes, sRes, rRes, pRes] = await Promise.all([
+      const [uRes, sRes, rRes, pRes, fRes] = await Promise.all([
         fetch(`${API_BASE}/users_api.php`),
         fetch(`${API_BASE}/stations_api.php`),
-        fetch(`${API_BASE}/reservations_api.php`), // Assuming this exists or returns []
-        fetch(`${API_BASE}/payments_api.php`)      // Assuming this exists or returns []
+        fetch(`${API_BASE}/reservations_api.php`),
+        fetch(`${API_BASE}/payments_api.php`),
+        fetch(`${API_BASE}/feedbacks_api.php`)
       ]);
 
       if (uRes.ok) {
@@ -66,28 +67,48 @@ export const DataProvider = ({ children }) => {
         if (uData.success) {
           // Fetch vehicles for all drivers
           const usersWithVehicles = await Promise.all(uData.data.map(async (u) => {
-             const vRes = await fetch(`${API_BASE}/vehicles_api.php?user_id=${u.user_id}`);
-             let vehicles = [];
-             if (vRes.ok) {
-               const vData = await vRes.json();
-               if(vData.success) vehicles = vData.data;
-             }
-             return {
-               id: u.user_id,
-               name: u.full_name,
-               email: u.email,
-               phone: u.phone_no,
-               type: u.user_type,
-               vehicles: vehicles
-             };
-          }));
-          setUsers(usersWithVehicles);
+              const vRes = await fetch(`${API_BASE}/vehicles_api.php?user_id=${u.user_id}`);
+              let vehicles = [];
+              if (vRes.ok) {
+                const vData = await vRes.json();
+                if(vData.success) {
+                  vehicles = vData.data.map(v => ({
+                    id: v.vehicle_id,
+                    platNo: v.plat_no,
+                    carModel: v.car_model
+                  }));
+                }
+              }
+              return {
+                id: u.user_id,
+                name: u.full_name,
+                email: u.email,
+                phone: u.phone_no,
+                type: u.user_type,
+                vehicles: vehicles
+              };
+           }));
+           setUsers(usersWithVehicles);
         }
       }
 
       if (sRes.ok) {
         const sData = await sRes.json();
-        if (sData.success) setStations(sData.data);
+        if (sData.success) {
+          setStations(sData.data.map(stn => ({
+            id: stn.station_id,
+            name: stn.station_name,
+            district: stn.district,
+            status: stn.status === 'Available' ? 'Online' : stn.status,
+            type: stn.charger_type,
+            price: `RM ${stn.price_per_kwh}/kWh`,
+            bays: (stn.ports || []).map(p => ({
+               id: p.port_id,
+               name: p.port_name,
+               status: p.status.toLowerCase() // available, maintenance, occupied/full
+            }))
+          })));
+        }
       }
       
       // We will assume reservations and payments API endpoints exist, 
@@ -102,7 +123,11 @@ export const DataProvider = ({ children }) => {
               user: r.full_name,
               station: r.station_name,
               date: r.reservation_date,
-              time: r.reservation_time
+              time: r.reservation_time,
+              targetAmount: r.target_amount,
+              actualCost: r.actual_cost,
+              actualDuration: r.actual_duration,
+              actualEnergy: r.actual_energy
             })));
           }
         }
@@ -124,6 +149,23 @@ export const DataProvider = ({ children }) => {
         }
       } catch(e) {}
 
+      try {
+        if (fRes.ok) {
+          const fData = await fRes.json();
+          if (fData.success) {
+            setFeedbacks(fData.data.map(f => ({
+              id: `FB-${String(f.feedback_id).padStart(3, '0')}`,
+              authorName: f.user_name || 'Anonymous',
+              station: f.station_name,
+              district: f.district || 'Melaka',
+              type: f.feedback_type,
+              message: f.message,
+              status: f.status || 'Pending',
+              createdAt: f.submitted_at
+            })));
+          }
+        }
+      } catch(e) {}
     } catch (error) {
       console.error("Error fetching data:", error);
     }
@@ -155,6 +197,7 @@ export const DataProvider = ({ children }) => {
         setCurrentUser(user);
         localStorage.setItem('voltpark_user', JSON.stringify(user));
         localStorage.setItem('currentUser', JSON.stringify(user));
+        fetchData(); // Trigger immediate refresh
         return user;
       }
       return null;
@@ -174,17 +217,64 @@ export const DataProvider = ({ children }) => {
 
   // Users
   const addUser = async (user) => {
-    // Mocked for hackathon simplicity, just update state
-    setUsers([...users, { ...user, id: `U00${users.length + 1}` }]);
-  };
-  const deleteUser = (id) => setUsers(users.filter(u => u.id !== id));
-  const updateUser = (updatedUser) => {
-    setUsers(users.map(u => u.id === updatedUser.id ? updatedUser : u));
-    if (currentUser && currentUser.id === updatedUser.id) {
-      setCurrentUser(updatedUser);
-      localStorage.setItem('voltpark_user', JSON.stringify(updatedUser));
-      localStorage.setItem('currentUser', JSON.stringify(updatedUser));
+    try {
+      const res = await fetch(`${API_BASE}/users_api.php`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          full_name: user.name,
+          email: user.email,
+          phone_no: user.phone,
+          password: user.password,
+          user_type: user.type || 'Driver'
+        })
+      });
+      const data = await res.json();
+      if (!data.success) {
+        throw new Error(data.message || 'Failed to create user');
+      }
+      fetchData();
+      return data;
+    } catch(e) { 
+      console.error(e);
+      throw e; 
     }
+  };
+
+  const updateUser = async (updatedUser) => {
+    try {
+      const res = await fetch(`${API_BASE}/users_api.php`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          user_id: updatedUser.id,
+          full_name: updatedUser.name,
+          phone_no: updatedUser.phone,
+          password: updatedUser.password,
+          user_type: updatedUser.type
+        })
+      });
+      if (res.ok) {
+        fetchData();
+        if (currentUser && currentUser.id === updatedUser.id) {
+          const newUser = { ...currentUser, ...updatedUser };
+          setCurrentUser(newUser);
+          localStorage.setItem('voltpark_user', JSON.stringify(newUser));
+          localStorage.setItem('currentUser', JSON.stringify(newUser));
+        }
+      }
+    } catch(e) { console.error(e); }
+  };
+
+  const deleteUser = async (id) => {
+    try {
+      const res = await fetch(`${API_BASE}/users_api.php`, {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ user_id: id })
+      });
+      if (res.ok) fetchData();
+    } catch(e) { console.error(e); }
   };
 
   // Vehicles
@@ -218,6 +308,7 @@ export const DataProvider = ({ children }) => {
     } catch(e) { console.error(e); }
   };
 
+
   const deleteVehicle = async (userId, vehicleId) => {
     try {
       const res = await fetch(`${API_BASE}/vehicles_api.php`, {
@@ -231,7 +322,16 @@ export const DataProvider = ({ children }) => {
 
   // Stations
   const addStation = (stn) => setStations([...stations, { ...stn, id: `STN-00${stations.length + 1}` }]);
-  const deleteStation = (id) => setStations(stations.filter(s => s.id !== id));
+  const deleteStation = async (id) => {
+    try {
+      const res = await fetch(`${API_BASE}/stations_api.php`, {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ station_id: id })
+      });
+      if (res.ok) fetchData();
+    } catch(e) { console.error(e); }
+  };
   const updateStationStatus = (id, status) => {
     setStations(stations.map(s => {
       if (s.id === id) {
@@ -244,24 +344,15 @@ export const DataProvider = ({ children }) => {
     }));
   };
 
-  const updateBayStatus = (stationId, bayId, forcedStatus = null) => {
-    setStations(stations.map(s => {
-      if (s.id === stationId) {
-        const updatedBays = s.bays.map(b => {
-          if (b.id === bayId) {
-            const newStatus = forcedStatus ? forcedStatus : (b.status === 'offline' ? 'available' : 'offline');
-            return { ...b, status: newStatus };
-          }
-          return b;
-        });
-
-        const allOffline = updatedBays.length > 0 && updatedBays.every(b => b.status === 'offline');
-        const newStationStatus = allOffline ? 'Maintenance' : 'Online';
-
-        return { ...s, bays: updatedBays, status: newStationStatus };
-      }
-      return s;
-    }));
+  const updateBayStatus = async (stationId, portId, status) => {
+    try {
+      const res = await fetch(`${API_BASE}/stations_api.php`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ port_id: portId, status: status })
+      });
+      if (res.ok) fetchData();
+    } catch(e) { console.error(e); }
   };
 
   const addAnnouncement = (title, message, authorId, authorName) => {
@@ -327,7 +418,8 @@ export const DataProvider = ({ children }) => {
           status: reservation.status,
           duration: reservation.duration,
           connector: reservation.connector,
-          power: reservation.power
+          power: reservation.power,
+          targetAmount: reservation.targetAmount
         })
       });
       const resJson = await resResponse.json();
@@ -357,7 +449,10 @@ export const DataProvider = ({ children }) => {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           reservation_id: id,
-          status: updates.status
+          status: updates.status,
+          actualCost: updates.actualCost,
+          actualDuration: updates.actualDuration,
+          actualEnergy: updates.actualEnergy
         })
       });
       fetchData();
@@ -378,7 +473,7 @@ export const DataProvider = ({ children }) => {
         body: JSON.stringify({
           transaction_id: tempId,
           user_id: payment.user_id || currentUser?.id,
-          amount: payment.amount,
+          amount: typeof payment.amount === 'string' ? payment.amount.replace(/RM\s*/i, '').split(' ')[0] : payment.amount,
           payment_method: payment.method,
           energy: payment.energy || null,
           receipt_no: `RCP-${Math.floor(Math.random() * 9000) + 1000}`
@@ -392,7 +487,8 @@ export const DataProvider = ({ children }) => {
     console.log(`Releasing pre-authorization hold of RM ${holdAmount}. Charging final amount of RM ${finalAmount}.`);
   };
 
-  const addFeedback = (feedback) => {
+  const addFeedback = async (feedback) => {
+    // 1. Update local state for immediate UI feedback
     const newFb = {
       ...feedback,
       id: `FB-${String(feedbacks.length + 1).padStart(3, '0')}`,
@@ -401,6 +497,16 @@ export const DataProvider = ({ children }) => {
       createdAt: new Date().toISOString().split('T')[0]
     };
     setFeedbacks([newFb, ...feedbacks]);
+
+    // 2. Persist to backend
+    try {
+      await fetch(`${API_BASE}/feedbacks_api.php`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(feedback)
+      });
+      fetchData(); // Sync with real DB data
+    } catch(e) { console.error("Feedback Persist Error:", e); }
   };
 
   const assignMaintenance = (feedbackId, details) => {
@@ -486,6 +592,17 @@ export const DataProvider = ({ children }) => {
     announcements, addAnnouncement, deleteAnnouncement, toggleAnnouncementStatus,
     maintenanceTasks, assignMaintenance, completeMaintenance
   };
+
+  // Keep currentUser in sync with the fetched users data (to get vehicles etc)
+  useEffect(() => {
+    if (currentUser && users.length > 0) {
+      // Use == to handle string/number ID mismatch
+      const updated = users.find(u => u.id == currentUser.id);
+      if (updated && JSON.stringify(updated.vehicles) !== JSON.stringify(currentUser.vehicles)) {
+        setCurrentUser(prev => ({ ...prev, ...updated }));
+      }
+    }
+  }, [users, currentUser?.id]);
 
   return <DataContext.Provider value={value}>{children}</DataContext.Provider>;
 };

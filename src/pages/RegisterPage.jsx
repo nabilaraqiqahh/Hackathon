@@ -4,6 +4,7 @@ import { useData } from '../context/DataContext';
 import { User, Mail, Lock, AlertCircle, Phone, Eye, EyeOff } from 'lucide-react';
 
 const RegisterPage = () => {
+  const { addUser } = useData();
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [phone, setPhone] = useState('');
@@ -15,7 +16,7 @@ const RegisterPage = () => {
   const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
 
-  const handleRegister = (e) => {
+  const handleRegister = async (e) => {
     e.preventDefault();
     setError('');
     
@@ -24,18 +25,31 @@ const RegisterPage = () => {
       return;
     }
 
+    // Malaysia phone validation (e.g. 012-3456789, +60123456789)
+    const cleanPhone = phone.replace(/[-\s]/g, '');
+    const phoneRegex = /^(\+?6?01)[0-46-9][0-9]{7,8}$/;
+    if (!phoneRegex.test(cleanPhone)) {
+      setError('Please enter a valid Malaysia phone number (e.g., 0123456789).');
+      return;
+    }
+
     setLoading(true);
 
-    // Mock register logic
-    setTimeout(() => {
-      if (name && email && phone && password) {
-        alert('Registration successful! Please log in with your new account.');
-        navigate('/login');
-      } else {
-        setError('Please fill in all fields.');
-      }
+    try {
+      await addUser({
+        name,
+        email,
+        phone,
+        password,
+        type: 'Driver'
+      });
+      alert('Registration successful! Please log in with your new account.');
+      navigate('/login');
+    } catch (err) {
+      setError(err.message || 'Registration failed. Please try again later.');
+    } finally {
       setLoading(false);
-    }, 800);
+    }
   };
 
   return (
@@ -89,9 +103,21 @@ const RegisterPage = () => {
               <Phone size={18} className="input-icon" />
               <input 
                 type="tel" 
-                placeholder="Enter your phone number"
+                placeholder="Enter your phone number (e.g. 0123456789)"
                 value={phone}
-                onChange={(e) => setPhone(e.target.value)}
+                onChange={(e) => {
+                  setPhone(e.target.value);
+                  if (error.includes('phone')) setError('');
+                }}
+                onBlur={() => {
+                  if (phone) {
+                    const cleanPhone = phone.replace(/[-\s]/g, '');
+                    const phoneRegex = /^(\+?6?01)[0-46-9][0-9]{7,8}$/;
+                    if (!phoneRegex.test(cleanPhone)) {
+                      setError('Please enter a valid Malaysia phone number.');
+                    }
+                  }
+                }}
                 required
               />
             </div>
